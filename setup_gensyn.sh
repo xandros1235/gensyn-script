@@ -25,11 +25,12 @@ sudo apt-get update && sudo apt-get upgrade -y
 sudo apt-get install sudo nano curl python3 python3-venv git screen -y
 
 # Install NVM and Node.js (latest LTS)
+echo -e "${GREEN}[3/9] Installing NVM and latest Node.js...${NC}"
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \ . "$NVM_DIR/nvm.sh"
-nvm install --lts
-nvm use --lts
+source "$NVM_DIR/nvm.sh"
+nvm install node
+nvm use node
 
 # Remove old Node.js source list if it exists
 sudo rm -f /etc/apt/sources.list.d/nodesource.list
