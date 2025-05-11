@@ -62,5 +62,5 @@ ufw enable
 **Note:** Press `Ctrl+A` then `D` to detach from the screen session. Reconnect later using:
 
 ```bash
-screen -r aztec
+screen -r gensyn
 ```
