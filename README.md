@@ -2,9 +2,16 @@
 
 This guide walks you through setting up gensyn.
 
+
+## Step 1: Get root access
+
+```bash
+sudo su
+```
+
 ---
 
-## Step 1: Install Dependencies
+## Step 2: Install Dependencies
 
 Update and upgrade your system, then install required packages:
 
@@ -21,7 +28,7 @@ apt install sudo -y
 
 ---
 
-## Step 2: Clone the Repository
+## Step 3: Clone the Repository
 
 ```bash
 git clone https://github.com/CodeDialect/gensyn-script.git
@@ -30,7 +37,7 @@ cd gensyn-script
 
 ---
 
-## Step 3: Make Scripts Executable
+## Step 4: Make Scripts Executable
 
 ```bash
 chmod +x setup_gensyn.sh
@@ -39,7 +46,7 @@ chmod +x setup_gensyn.sh
 ---
 
 If you are using vps then
-## Step 6: Enable Firewall & Open Required Ports
+## Step 5: Enable Firewall & Open Required Ports
 
 ```bash
 # Basic SSH Access
@@ -52,7 +59,7 @@ ufw enable
 ```
 ---
 
-## Step 8: Run the GENSYN
+## Step 6: Run the GENSYN
 
 ```bash
 ./setup_gensyn.sh
