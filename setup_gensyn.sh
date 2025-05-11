@@ -20,11 +20,12 @@ cat << "BANNER"
 BANNER
 echo -e "${NC}"
 
-# Update and install dependencies
+echo -e "${GREEN}[1/9] Updating system...${NC}"
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install sudo nano curl python3 python3-venv git screen -y
 
-# Install NVM and Node.js (latest LTS)
+echo -e "${GREEN}[2/9] Installing dependencies...${NC}"
+sudo apt install -y sudo nano curl python3 python3-pip python3-venv git screen
+
 echo -e "${GREEN}[3/9] Installing NVM and latest Node.js...${NC}"
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
@@ -32,13 +33,16 @@ source "$NVM_DIR/nvm.sh"
 nvm install node
 nvm use node
 
-# Clone and set up the Gensyn project
+echo -e "${GREEN}[4/9] Cloning rl-swarm repository...${NC}"
 git clone https://github.com/gensyn-ai/rl-swarm
 cd rl-swarm
+
+echo -e "${GREEN}[5/9] Setting up Python virtual environment...${NC}"
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Replace modal-login/app/page.tsx
+echo -e "${GREEN}[6/9] Replacing app/page.tsx with custom content...${NC}"
+mkdir -p modal-login/app
 cat > modal-login/app/page.tsx << 'EOF'
 "use client";
 import {
@@ -69,7 +73,6 @@ export default function Home() {
     if (!user && createdApiKey) {
       setCreatedApiKey(false);
     }
-
     if (!user || !signer || !signerStatus.isConnected || createdApiKey) return;
 
     const submitStamp = async () => {
@@ -159,18 +162,22 @@ export default function Home() {
 }
 EOF
 
-# Start rl-swarm in background
+echo -e "${GREEN}[7/9] Running ./run_rl_swarm.sh in a screen session...${NC}"
 screen -dmS gensyn ./run_rl_swarm.sh
 
-# Wait for port 3000
-until nc -z localhost 3000; do sleep 1; done
+echo -e "${GREEN}[8/9] Installing localtunnel (if not installed)...${NC}"
+npm install -g localtunnel
 
-# Start localtunnel
-screen -dmS tunnel npx localtunnel --port 3000 --print-requests
+echo -e "${GREEN}[9/9] Starting localtunnel on port 3000...${NC}"
+screen -dmS lt bash -c 'lt --port 3000 > lt_output.txt'
+sleep 6
 
-# Final message
-echo -e "\n${GREEN}Setup complete. rl-swarm is running in a screen session named 'gensyn'.\nLocalTunnel is exposing the login page on port 3000. Use the provided link to proceed.${NC}"
-echo -e "\nTo reattach to a screen session:
-  screen -r gensyn
-  screen -r tunnel"
-echo -e "\nTo detach from a screen session, press Ctrl+A then D."
+LT_URL=$(grep -o 'https://[^ ]*' lt_output.txt | head -n1)
+rm lt_output.txt
+
+IP=$(curl -s ifconfig.me)
+
+echo -e "${GREEN}=========================================${NC}"
+echo -e "${GREEN}Localtunnel URL: ${LT_URL}${NC}"
+echo -e "${GREEN}Use this IP as password during login: ${IP}${NC}"
+echo -e "${GREEN}=========================================${NC}"
