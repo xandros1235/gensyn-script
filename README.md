@@ -16,16 +16,9 @@ sudo su
 Update and upgrade your system, then install required packages:
 
 ```bash
-sudo apt-get update && sudo apt-get upgrade -y
-sudo apt install nano curl screen git -y
+apt-get update && sudo apt-get upgrade -y
+apt install nano curl screen git -y
 ```
-
-If you get `sudo: command not found`, install sudo:
-
-```bash
-apt install sudo -y
-```
-
 ---
 
 ## Step 3: Clone the Repository
