@@ -6,29 +6,30 @@ set -e
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-echo -e "${GREEN}[1/8] Updating system...${NC}"
+echo -e "${GREEN}[1/9] Updating system...${NC}"
 sudo apt-get update && sudo apt-get upgrade -y
 
-echo -e "${GREEN}[2/8] Installing dependencies...${NC}"
-sudo apt install sudo nano curl python3 git screen python3.12-venv -y
+echo -e "${GREEN}[2/9] Installing dependencies...${NC}"
+sudo apt install -y sudo nano curl python3 python3-pip python3-venv git screen
 
-echo -e "${GREEN}[3/8] Installing NVM and Node.js...${NC}"
+echo -e "${GREEN}[3/9] Installing NVM and latest Node.js...${NC}"
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 source "$NVM_DIR/nvm.sh"
 nvm install node
 nvm use node
 
-echo -e "${GREEN}[4/8] Cloning rl-swarm...${NC}"
+echo -e "${GREEN}[4/9] Cloning rl-swarm repository...${NC}"
 git clone https://github.com/gensyn-ai/rl-swarm
 cd rl-swarm
 
-echo -e "${GREEN}[5/8] Setting up Python virtual environment...${NC}"
+echo -e "${GREEN}[5/9] Setting up Python virtual environment...${NC}"
 python3 -m venv .venv
 source .venv/bin/activate
 
-echo -e "${GREEN}[6/8] Replacing modal-login/page.tsx...${NC}"
-cat > modal-login/page.tsx << 'EOF'
+echo -e "${GREEN}[6/9] Replacing app/page.tsx with custom content...${NC}"
+mkdir -p modal-login/app
+cat > modal-login/app/page.tsx << 'EOF'
 "use client";
 import {
   useAuthModal,
@@ -147,15 +148,22 @@ export default function Home() {
 }
 EOF
 
-echo -e "${GREEN}[7/8] Running ./run_rl_swarm.sh in background...${NC}"
+echo -e "${GREEN}[7/9] Running ./run_rl_swarm.sh in a screen session...${NC}"
 screen -dmS gensyn ./run_rl_swarm.sh
 
-echo -e "${GREEN}[8/8] Installing and launching localtunnel on port 3000...${NC}"
-npx localtunnel --port 3000 > lt_url.txt &
-sleep 5
-LT_URL=$(grep -o 'https://[^ ]*' lt_url.txt | head -n1)
-rm lt_url.txt
+echo -e "${GREEN}[8/9] Installing localtunnel (if not installed)...${NC}"
+npm install -g localtunnel
+
+echo -e "${GREEN}[9/9] Starting localtunnel on port 3000...${NC}"
+screen -dmS lt bash -c 'lt --port 3000 > lt_output.txt'
+sleep 6
+
+LT_URL=$(grep -o 'https://[^ ]*' lt_output.txt | head -n1)
+rm lt_output.txt
 
 IP=$(curl -s ifconfig.me)
+
+echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}Localtunnel URL: ${LT_URL}${NC}"
 echo -e "${GREEN}Use this IP as password during login: ${IP}${NC}"
+echo -e "${GREEN}=========================================${NC}"
