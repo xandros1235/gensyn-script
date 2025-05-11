@@ -163,7 +163,7 @@ export default function Home() {
 EOF
 
 echo -e "${GREEN}[7/9] Running ./run_rl_swarm.sh in a screen session...${NC}"
-screen -dmS gensyn ./run_rl_swarm.sh
+screen -dmS gensyn bash -c "source .venv/bin/activate && ./run_rl_swarm.sh"
 
 echo -e "${GREEN}[8/9] Installing localtunnel (if not installed)...${NC}"
 npm install -g localtunnel
