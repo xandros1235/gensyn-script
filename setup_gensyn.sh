@@ -169,7 +169,7 @@ echo -e "${GREEN}[8/9] Installing localtunnel (if not installed)...${NC}"
 npm install -g localtunnel
 
 echo -e "${GREEN}[9/9] Starting localtunnel on port 3000...${NC}"
-screen -dmS lt bash -c 'lt --port 3000 > lt_output.txt'
+screen -dmS localtunnel bash -c 'lt --port 3000 > lt_output.txt'
 sleep 6
 
 LT_URL=$(grep -o 'https://[^ ]*' lt_output.txt | head -n1)
