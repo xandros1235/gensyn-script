@@ -32,10 +32,6 @@ source "$NVM_DIR/nvm.sh"
 nvm install node
 nvm use node
 
-# Remove old Node.js source list if it exists
-sudo rm -f /etc/apt/sources.list.d/nodesource.list
-sudo apt update
-
 # Clone and set up the Gensyn project
 git clone https://github.com/gensyn-ai/rl-swarm
 cd rl-swarm
