@@ -9,8 +9,14 @@ This guide walks you through setting up gensyn.
 Update and upgrade your system, then install required packages:
 
 ```bash
-apt-get update && sudo apt-get upgrade -y
-apt install nano curl screen git -y
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt install nano curl screen git -y
+```
+---
+
+If sudo: command not found:
+```bash
+apt install sudo
 ```
 ---
 
