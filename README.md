@@ -42,12 +42,12 @@ If you are using vps then
 
 ```bash
 # Basic SSH Access
-ufw allow 22
-ufw allow ssh
-ufw allow 3000
+sudo ufw allow 22
+sudo ufw allow ssh
+sudo ufw allow 3000
 
 # Enable Firewall
-ufw enable
+sudo ufw enable
 ```
 ---
 
