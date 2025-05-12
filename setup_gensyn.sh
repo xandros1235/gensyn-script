@@ -20,11 +20,36 @@ cat << "BANNER"
 BANNER
 echo -e "${NC}"
 
+USER_HOME="/home/$(whoami)"
+
+# Locate swarm.pem file
+PEM_PATH=$(find "$USER_HOME" -maxdepth 2 -type f -name "swarm.pem" 2>/dev/null | head -n 1)
+
+if [ -n "$PEM_PATH" ]; then
+  if [ "$PEM_PATH" != "${USER_HOME}/swarm.pem" ]; then
+    echo -e "${GREEN}Found swarm.pem at $PEM_PATH, copying to ${USER_HOME}/swarm.pem...${NC}"
+    cp "$PEM_PATH" "${USER_HOME}/swarm.pem"
+  else
+    echo -e "${GREEN}swarm.pem already in correct location. Creating .backup...${NC}"
+    cp "${USER_HOME}/swarm.pem" "${USER_HOME}/swarm.pem.backup"
+  fi
+fi
+
+# Remove existing rl-swarm if exists, but backup swarm.pem first
+if [ -d "$USER_HOME/rl-swarm" ]; then
+  if [ -f "$USER_HOME/rl-swarm/swarm.pem" ]; then
+    echo -e "${GREEN}Backing up existing swarm.pem from rl-swarm...${NC}"
+    cp "$USER_HOME/rl-swarm/swarm.pem" "$USER_HOME/swarm.pem.backup"
+  fi
+  echo -e "${GREEN}Removing old rl-swarm directory...${NC}"
+  rm -rf "$USER_HOME/rl-swarm"
+fi
+
 echo -e "${GREEN}[1/9] Updating system...${NC}"
-sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get update -qq && sudo apt-get upgrade -y -qq
 
 echo -e "${GREEN}[2/9] Installing dependencies...${NC}"
-sudo apt install -y sudo nano curl python3 python3-pip python3-venv git screen
+sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git screen
 
 echo -e "${GREEN}[3/9] Installing NVM and latest Node.js...${NC}"
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
@@ -35,7 +60,20 @@ nvm use node
 
 echo -e "${GREEN}[4/9] Cloning rl-swarm repository...${NC}"
 git clone https://github.com/gensyn-ai/rl-swarm
-cd rl-swarm
+
+if [ -d "$USER_HOME/rl-swarm" ]; then
+  echo -e "${GREEN}rl-swarm is already in place. No need to move.${NC}"
+else
+  mv rl-swarm "$USER_HOME/rl-swarm"
+fi
+
+cd "$USER_HOME/rl-swarm"
+
+# Restore swarm.pem if it exists
+if [ -f "$USER_HOME/swarm.pem" ]; then
+  echo -e "${GREEN}Restoring swarm.pem into rl-swarm folder...${NC}"
+  cp "$USER_HOME/swarm.pem" "$USER_HOME/rl-swarm/swarm.pem"
+fi
 
 echo -e "${GREEN}[5/9] Setting up Python virtual environment...${NC}"
 python3 -m venv .venv
@@ -163,13 +201,13 @@ export default function Home() {
 EOF
 
 echo -e "${GREEN}[7/9] Running ./run_rl_swarm.sh in a screen session...${NC}"
-screen -dmS gensyn bash -c "source .venv/bin/activate && ./run_rl_swarm.sh"
+screen -dmS gensyn ./run_rl_swarm.sh
 
 echo -e "${GREEN}[8/9] Installing localtunnel (if not installed)...${NC}"
 npm install -g localtunnel
 
 echo -e "${GREEN}[9/9] Starting localtunnel on port 3000...${NC}"
-screen -dmS localtunnel bash -c 'lt --port 3000 > lt_output.txt'
+screen -dmS lt bash -c 'lt --port 3000 > lt_output.txt'
 sleep 6
 
 LT_URL=$(grep -o 'https://[^ ]*' lt_output.txt | head -n1)
@@ -181,3 +219,7 @@ echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}Localtunnel URL: ${LT_URL}${NC}"
 echo -e "${GREEN}Use this IP as password during login: ${IP}${NC}"
 echo -e "${GREEN}=========================================${NC}"
+echo -e "${GREEN}======================================================${NC}"
+echo -e "${GREEN}🎥 What's Next? Watch this guide to continue:${NC}"
+echo -e "${GREEN}https://www.youtube.com/watch?v=dQw4w9WgXcQ${NC}"
+echo -e "${GREEN}======================================================${NC}"
