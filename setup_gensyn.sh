@@ -1,85 +1,82 @@
 #!/bin/bash
-
 set -e
 
-# Colors for output
+# Colors
 GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Banner
-clear
+# BANNER
 echo -e "${GREEN}"
-cat << "BANNER"
+cat << 'EOF'
  ______              _         _                                             
 |  ___ \            | |       | |                   _                        
 | |   | |  ___    _ | |  ____ | | _   _   _  ____  | |_   ____   ____  _____ 
 | |   | | / _ \  / || | / _  )| || \ | | | ||  _ \ |  _) / _  ) / ___)(___  )
 | |   | || |_| |( (_| |( (/ / | | | || |_| || | | || |__( (/ / | |     / __/ 
 |_|   |_| \___/  \____| \____)|_| |_| \____||_| |_| \___)\____)|_|    (_____)
-                                                                             
-BANNER
+EOF
 echo -e "${NC}"
 
+# Set user and paths
 USER_HOME="/home/$(whoami)"
+PEM_SRC=""
+PEM_DEST="$USER_HOME/swarm.pem"
+RL_SWARM_DIR="$USER_HOME/rl-swarm"
 
-# Locate swarm.pem file
-PEM_PATH=$(find "$USER_HOME" -maxdepth 2 -type f -name "swarm.pem" 2>/dev/null | head -n 1)
+echo -e "${GREEN}[1/10] Backing up swarm.pem if exists...${NC}"
 
-if [ -n "$PEM_PATH" ]; then
-  if [ "$PEM_PATH" != "${USER_HOME}/swarm.pem" ]; then
-    echo -e "${GREEN}Found swarm.pem at $PEM_PATH, copying to ${USER_HOME}/swarm.pem...${NC}"
-    cp "$PEM_PATH" "${USER_HOME}/swarm.pem"
-  else
-    echo -e "${GREEN}swarm.pem already in correct location. Creating .backup...${NC}"
-    cp "${USER_HOME}/swarm.pem" "${USER_HOME}/swarm.pem.backup"
-  fi
+# Search for swarm.pem in home directory or inside rl-swarm
+if [ -f "$USER_HOME/swarm.pem" ]; then
+  PEM_SRC="$USER_HOME/swarm.pem"
+elif [ -f "$RL_SWARM_DIR/swarm.pem" ]; then
+  PEM_SRC="$RL_SWARM_DIR/swarm.pem"
 fi
 
-# Remove existing rl-swarm if exists, but backup swarm.pem first
-if [ -d "$USER_HOME/rl-swarm" ]; then
-  if [ -f "$USER_HOME/rl-swarm/swarm.pem" ]; then
-    echo -e "${GREEN}Backing up existing swarm.pem from rl-swarm...${NC}"
-    cp "$USER_HOME/rl-swarm/swarm.pem" "$USER_HOME/swarm.pem.backup"
-  fi
-  echo -e "${GREEN}Removing old rl-swarm directory...${NC}"
-  rm -rf "$USER_HOME/rl-swarm"
+# Backup PEM if found
+if [ -n "$PEM_SRC" ]; then
+  echo "Found swarm.pem at: $PEM_SRC"
+  cp "$PEM_SRC" "$PEM_DEST.backup"
+  echo "Backup created: $PEM_DEST.backup"
+else
+  echo "swarm.pem not found. Continuing without backup."
 fi
 
-echo -e "${GREEN}[1/9] Updating system...${NC}"
-sudo apt-get update -qq && sudo apt-get upgrade -y -qq
+echo -e "${GREEN}[2/10] Updating system silently...${NC}"
+sudo apt-get update -qq > /dev/null
+sudo apt-get upgrade -y -qq > /dev/null
 
-echo -e "${GREEN}[2/9] Installing dependencies...${NC}"
-sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git screen
+echo -e "${GREEN}[3/10] Installing dependencies silently...${NC}"
+sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git screen > /dev/null
 
-echo -e "${GREEN}[3/9] Installing NVM and latest Node.js...${NC}"
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+echo -e "${GREEN}[4/10] Installing NVM and latest Node.js...${NC}"
+curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 source "$NVM_DIR/nvm.sh"
-nvm install node
-nvm use node
+nvm install node > /dev/null
+nvm use node > /dev/null
 
-echo -e "${GREEN}[4/9] Cloning rl-swarm repository...${NC}"
-git clone https://github.com/gensyn-ai/rl-swarm
-
-if [ -d "$USER_HOME/rl-swarm" ]; then
-  echo -e "${GREEN}rl-swarm is already in place. No need to move.${NC}"
-else
-  mv rl-swarm "$USER_HOME/rl-swarm"
+# Remove old rl-swarm if exists
+if [ -d "$RL_SWARM_DIR" ]; then
+  echo -e "${GREEN}[5/10] Removing existing rl-swarm folder...${NC}"
+  rm -rf "$RL_SWARM_DIR"
 fi
 
-cd "$USER_HOME/rl-swarm"
+echo -e "${GREEN}[6/10] Cloning rl-swarm repository...${NC}"
+git clone https://github.com/gensyn-ai/rl-swarm "$RL_SWARM_DIR" > /dev/null
 
-# Restore swarm.pem if it exists
-if [ -f "$USER_HOME/swarm.pem" ]; then
-  echo -e "${GREEN}Restoring swarm.pem into rl-swarm folder...${NC}"
-  cp "$USER_HOME/swarm.pem" "$USER_HOME/rl-swarm/swarm.pem"
+# Restore swarm.pem if we had a backup
+if [ -f "$PEM_DEST.backup" ]; then
+  cp "$PEM_DEST.backup" "$RL_SWARM_DIR/swarm.pem"
+  echo "Restored swarm.pem into rl-swarm folder."
 fi
 
-echo -e "${GREEN}[5/9] Setting up Python virtual environment...${NC}"
+cd "$RL_SWARM_DIR"
+
+echo -e "${GREEN}[7/10] Setting up Python virtual environment...${NC}"
 python3 -m venv .venv
 source .venv/bin/activate
 
-echo -e "${GREEN}[6/9] Replacing app/page.tsx with custom content...${NC}"
+echo -e "${GREEN}[8/10] Replacing modal-login/app/page.tsx with custom content...${NC}"
 mkdir -p modal-login/app
 cat > modal-login/app/page.tsx << 'EOF'
 "use client";
@@ -102,15 +99,7 @@ export default function Home() {
   const [createdApiKey, setCreatedApiKey] = useState(false);
 
   useEffect(() => {
-    console.log("signerStatus:", signerStatus);
-    console.log("user:", user);
-    console.log("createdApiKey:", createdApiKey);
-  }, [signerStatus, user, createdApiKey]);
-
-  useEffect(() => {
-    if (!user && createdApiKey) {
-      setCreatedApiKey(false);
-    }
+    if (!user && createdApiKey) setCreatedApiKey(false);
     if (!user || !signer || !signerStatus.isConnected || createdApiKey) return;
 
     const submitStamp = async () => {
@@ -155,17 +144,13 @@ export default function Home() {
           throw new Error("window.crypto.subtle is not available");
         }
       } catch (err) {
-        alert(
-          "Crypto API is not available. Please access via localhost or HTTPS."
-        );
+        alert("Crypto API is not available. Please access via localhost or HTTPS.");
       }
     }
   }, []);
 
   useEffect(() => {
-    if (!signerStatus.isInitializing && !user) {
-      openAuthModal();
-    }
+    if (!signerStatus.isInitializing && !user) openAuthModal();
   }, [signerStatus.isInitializing, user]);
 
   return (
@@ -177,9 +162,7 @@ export default function Home() {
       ) : user ? (
         <div className="card">
           <div className="flex flex-col gap-2 p-2">
-            <p className="text-xl font-bold">
-              YOU ARE SUCCESSFULLY LOGGED IN TO THE GENSYN TESTNET
-            </p>
+            <p className="text-xl font-bold">YOU ARE SUCCESSFULLY LOGGED IN TO THE GENSYN TESTNET</p>
             <button className="btn btn-primary mt-6" onClick={() => logout()}>
               Log out
             </button>
@@ -200,26 +183,35 @@ export default function Home() {
 }
 EOF
 
-echo -e "${GREEN}[7/9] Running ./run_rl_swarm.sh in a screen session...${NC}"
+echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
 screen -dmS gensyn ./run_rl_swarm.sh
+echo -e "${GREEN}[10/10] Setting up ngrok...${NC}"
+npm install -g ngrok > /dev/null
 
-echo -e "${GREEN}[8/9] Installing localtunnel (if not installed)...${NC}"
-npm install -g localtunnel
+echo -e "${GREEN}Enter your ngrok auth token (get it from https://dashboard.ngrok.com/get-started/your-authtoken):${NC}"
+read -rp "Auth Token: " NGROK_TOKEN
+ngrok config add-authtoken "$NGROK_TOKEN"
 
-echo -e "${GREEN}[9/9] Starting localtunnel on port 3000...${NC}"
-screen -dmS lt bash -c 'lt --port 3000 > lt_output.txt'
-sleep 6
+echo -e "${GREEN}Starting ngrok on port 3000...${NC}"
+screen -dmS ngrok_session bash -c "ngrok http 3000 > /dev/null 2>&1"
 
-LT_URL=$(grep -o 'https://[^ ]*' lt_output.txt | head -n1)
-rm lt_output.txt
+# Wait for ngrok to start and retrieve the public URL from the local API
+echo -e "${GREEN}Waiting for ngrok to initialize...${NC}"
+for i in {1..10}; do
+  NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
+  if [[ $NGROK_URL == https://* ]]; then
+    break
+  fi
+  sleep 1
+done
 
-IP=$(curl -s ifconfig.me)
-
-echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}Localtunnel URL: ${LT_URL}${NC}"
-echo -e "${GREEN}Use this IP as password during login: ${IP}${NC}"
-echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}======================================================${NC}"
-echo -e "${GREEN}🎥 What's Next? Watch this guide to continue:${NC}"
-echo -e "${GREEN}https://youtu.be/NGrNaGFWAP4?si=EZ3yP8zgDvUJ1CiN${NC}"
-echo -e "${GREEN}======================================================${NC}"
+if [[ $NGROK_URL == https://* ]]; then
+  echo -e "${GREEN}=========================================${NC}"
+  echo -e "${GREEN}Gensyn testnet URL: ${NGROK_URL}${NC}"
+  echo -e "${GREEN}Use this in your browser to access the login page.${NC}"
+  echo -e "${GREEN}🎥 What's Next? Watch this guide to continue:${NC}"
+  echo -e "${GREEN}https://youtu.be/NGrNaGFWAP4?si=EZ3yP8zgDvUJ1CiN${NC}"
+  echo -e "${GREEN}=========================================${NC}"
+else
+  echo -e "${RED}❌ Failed to fetch ngrok URL. Make sure ngrok started correctly.${NC}"
+fi
