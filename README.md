@@ -21,15 +21,16 @@ apt install sudo
 ---
 
 ## Step 2: Clone the Repository
-If first command giving you error file already exits then run 
-
-```bash
-rm -rf gensyn-script
-```
 
 ```bash
 git clone https://github.com/CodeDialect/gensyn-script.git
 cd gensyn-script
+```
+
+## If above command giving you error file already exits then run below command first then run the Step 2 else don't run below command
+
+```bash
+rm -rf gensyn-script
 ```
 
 ---
