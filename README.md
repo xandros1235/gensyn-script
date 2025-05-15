@@ -63,3 +63,12 @@ sudo ufw enable
 ```bash
 screen -r gensyn
 ```
+
+
+
+**Note:** Run only if the screen shows current_batch variable error:
+
+```bash
+chmod +x $HOME/gensyn-script/batch_error.sh
+$HOME/gensyn-script/batch_error.sh
+```
