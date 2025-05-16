@@ -5,19 +5,31 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${GREEN}📁 Navigating to config directory...${NC}"
-CONFIG_DIR="$HOME/rl-swarm/hivemind_exp/configs/mac"
-cd "$CONFIG_DIR"
+# Try to locate the config YAML
+echo -e "${GREEN}🔍 Searching for YAML config file...${NC}"
 
-CONFIG_FILE=$(ls | head -n 1)
+SEARCH_DIRS=("$HOME/rl-swarm/hivemind_exp/configs/mac" "$HOME/rl-swarm")
+CONFIG_FILE=""
+
+for dir in "${SEARCH_DIRS[@]}"; do
+  if [ -d "$dir" ]; then
+    cd "$dir"
+    file=$(ls *.yaml 2>/dev/null | head -n 1)
+    if [ -n "$file" ]; then
+      CONFIG_FILE="$file"
+      CONFIG_DIR="$dir"
+      break
+    fi
+  fi
+done
 
 if [ -z "$CONFIG_FILE" ]; then
-  echo -e "${RED}❌ No YAML file found in $CONFIG_DIR${NC}"
+  echo -e "${RED}❌ No YAML config file found in expected locations.${NC}"
   exit 1
 fi
 
 echo -e "${GREEN}🛠 Fixing batch error in: $CONFIG_FILE${NC}"
-
+cd "$CONFIG_DIR"
 cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
 
 sed -i 's/torch_dtype:.*/torch_dtype: float32/' "$CONFIG_FILE"
