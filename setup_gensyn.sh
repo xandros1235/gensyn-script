@@ -210,7 +210,7 @@ if [[ $NGROK_URL == https://* ]]; then
   echo -e "${GREEN}Gensyn testnet URL: ${NGROK_URL}${NC}"
   echo -e "${GREEN}Use this in your browser to access the login page.${NC}"
   echo -e "${GREEN}🎥 What's Next? Watch this guide to continue:${NC}"
-  echo -e "${GREEN}https://youtu.be/NGrNaGFWAP4?si=EZ3yP8zgDvUJ1CiN${NC}"
+  echo -e "${GREEN}https://youtu.be/XF_HiOfK1PI?si=tnd6b9kytd1RvcME${NC}"
   echo -e "${GREEN}=========================================${NC}"
 else
   echo -e "${RED}❌ Failed to fetch ngrok URL. Make sure ngrok started correctly.${NC}"
