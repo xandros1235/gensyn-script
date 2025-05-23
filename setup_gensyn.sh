@@ -62,6 +62,25 @@ if [ -n "$CURRENT_NODE_VERSION" ]; then
   fi
 fi
 
+echo -e "${GREEN}Installing NVM and latest Node.js...${NC}"
+curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+source "$NVM_DIR/nvm.sh"
+
+nvm install node --reinstall-packages-from=node > /dev/null
+nvm alias default node
+nvm use default
+
+echo -e "${GREEN}🔁 Ensuring NVM loads in future sessions...${NC}"
+if ! grep -q 'NVM_DIR' "$HOME/.bashrc"; then
+  {
+    echo ''
+    echo 'export NVM_DIR="$HOME/.nvm"'
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
+  } >> "$HOME/.bashrc"
+fi
+
+
 # Remove old rl-swarm if exists
 if [ -d "$RL_SWARM_DIR" ]; then
   echo -e "${GREEN}[5/10] Removing existing rl-swarm folder...${NC}"
