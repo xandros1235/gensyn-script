@@ -3,6 +3,7 @@ set -e
 
 # Colors
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 # BANNER
@@ -23,16 +24,19 @@ PEM_SRC=""
 PEM_DEST="$USER_HOME/swarm.pem"
 RL_SWARM_DIR="$USER_HOME/rl-swarm"
 
-echo -e "${GREEN}[1/10] Backing up swarm.pem if exists...${NC}"
+# Remove previous folder if exists
+if [ -d "$USER_HOME/gensyn-script" ]; then
+  echo -e "${GREEN}🧹 Removing old gensyn-script folder...${NC}"
+  rm -rf "$USER_HOME/gensyn-script"
+fi
 
-# Search for swarm.pem in home directory or inside rl-swarm
+echo -e "${GREEN}[1/10] Backing up swarm.pem if exists...${NC}"
 if [ -f "$USER_HOME/swarm.pem" ]; then
   PEM_SRC="$USER_HOME/swarm.pem"
 elif [ -f "$RL_SWARM_DIR/swarm.pem" ]; then
   PEM_SRC="$RL_SWARM_DIR/swarm.pem"
 fi
 
-# Backup PEM if found
 if [ -n "$PEM_SRC" ]; then
   echo "Found swarm.pem at: $PEM_SRC"
   cp "$PEM_SRC" "$PEM_DEST.backup"
@@ -51,16 +55,21 @@ sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git scre
 echo -e "${GREEN}[4/10] Installing NVM and latest Node.js...${NC}"
 curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
-# Ensure nvm.sh is sourced for the current shell
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+source "$NVM_DIR/nvm.sh"
 
-# Install latest stable Node.js version
-sudo nvm install node --reinstall-packages-from=node > /dev/null
-sudo nvm alias default node > /dev/null
-sudo nvm use node > /dev/null
+# Install latest Node.js and set as default
+nvm install node --reinstall-packages-from=node > /dev/null
+nvm alias default node
+nvm use default
 
-echo -e "${GREEN}✔ Node.js version $(node -v) installed and activated.${NC}"
-
+echo -e "${GREEN}🔁 Ensuring NVM loads in future sessions...${NC}"
+if ! grep -q 'NVM_DIR' "$HOME/.bashrc"; then
+  {
+    echo ''
+    echo 'export NVM_DIR="$HOME/.nvm"'
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
+  } >> "$HOME/.bashrc"
+fi
 
 # Remove old rl-swarm if exists
 if [ -d "$RL_SWARM_DIR" ]; then
@@ -69,7 +78,7 @@ if [ -d "$RL_SWARM_DIR" ]; then
 fi
 
 echo -e "${GREEN}[6/10] Cloning rl-swarm repository...${NC}"
-git clone https://github.com/CodeDialect/rl-swarm "$RL_SWARM_DIR" > /dev/null
+git clone https://github.com/gensyn-ai/rl-swarm "$RL_SWARM_DIR" > /dev/null
 
 # Restore swarm.pem if we had a backup
 if [ -f "$PEM_DEST.backup" ]; then
@@ -191,14 +200,10 @@ export default function Home() {
 EOF
 
 echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
-screen -dmS gensyn bash -c '
-cd ~/rl-swarm
-source .venv/bin/activate
-./run_rl_swarm.sh || echo "⚠️ run_rl_swarm.sh exited with error code $?"
-exec bash
-'
+screen -dmS gensyn ./run_rl_swarm.sh
+
 echo -e "${GREEN}[10/10] Setting up ngrok...${NC}"
-sudo npm install -g ngrok > /dev/null
+npm install -g ngrok > /dev/null
 
 echo -e "${GREEN}Enter your ngrok auth token (get it from https://dashboard.ngrok.com/get-started/your-authtoken):${NC}"
 read -rp "Auth Token: " NGROK_TOKEN
@@ -207,7 +212,7 @@ ngrok config add-authtoken "$NGROK_TOKEN"
 echo -e "${GREEN}Starting ngrok on port 3000...${NC}"
 screen -dmS ngrok_session bash -c "ngrok http 3000 > /dev/null 2>&1"
 
-# Wait for ngrok to start and retrieve the public URL from the local API
+# Wait for ngrok to start and retrieve the public URL
 echo -e "${GREEN}Waiting for ngrok to initialize...${NC}"
 for i in {1..10}; do
   NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
