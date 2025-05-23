@@ -252,6 +252,60 @@ if [ -z "$TUNNEL_URL" ]; then
 else
   echo -e "${GREEN}=========================================${NC}"
   echo -e "${GREEN}Public URL: $TUNNEL_URL${NC}"
+echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
+screen -dmS gensyn ./run_rl_swarm.sh
+echo -e "${GREEN}[10/10] Setting up ngrok...${NC}"
+echo -e "${GREEN}🌐 Attempting to expose localhost:3000 via LocalTunnel...${NC}"
+
+# Try LocalTunnel
+npm install -g localtunnel > /dev/null 2>&1
+LT_URL=$(lt --port 3000 --print-requests 2>/dev/null &)
+sleep 5
+LT_PUBLIC_URL=$(curl -s http://localhost:3000 | grep -o 'https://.*\.loca\.lt' | head -n 1)
+
+if [[ $LT_PUBLIC_URL == https://* ]]; then
+  echo -e "${GREEN}✅ LocalTunnel URL: ${LT_PUBLIC_URL}${NC}"
+else
+  echo -e "${RED}❌ LocalTunnel failed. Uninstalling...${NC}"
+  npm uninstall -g localtunnel > /dev/null 2>&1
+
+  echo -e "${GREEN}☁️ Trying Cloudflare Tunnel...${NC}"
+  if ! command -v cloudflared &> /dev/null; then
+    wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+    sudo dpkg -i cloudflared-linux-amd64.deb > /dev/null
+    rm cloudflared-linux-amd64.deb
+  fi
+
+  screen -dmS cftunnel cloudflared tunnel --url http://localhost:3000
+  sleep 10
+
+  CF_URL=$(curl -s http://localhost:3000 | grep -o 'https://.*\.trycloudflare\.com' | head -n 1)
+
+  if [[ $CF_URL == https://* ]]; then
+    echo -e "${GREEN}✅ Cloudflare Tunnel URL: ${CF_URL}${NC}"
+  else
+    echo -e "${RED}❌ Cloudflare Tunnel failed. Trying Ngrok...${NC}"
+
+    if ! command -v ngrok &> /dev/null; then
+      npm install -g ngrok > /dev/null
+    fi
+
+    echo -e "${GREEN}🔑 Enter your Ngrok auth token:${NC}"
+    read -rp "Auth Token: " NGROK_TOKEN
+    ngrok config add-authtoken "$NGROK_TOKEN"
+    screen -dmS ngrok_session bash -c "ngrok http 3000 > /dev/null 2>&1"
+    sleep 10
+
+    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
+
+    if [[ $NGROK_URL == https://* ]]; then
+      echo -e "${GREEN}✅ Ngrok URL: ${NGROK_URL}${NC}"
+    else
+      echo -e "${RED}❌ All tunneling methods failed.${NC}"
+    fi
+  fi
+fi
+
   echo -e "${GREEN}Use this in your browser to access the login page.${NC}"
   echo -e "${GREEN}=========================================${NC}"
 fi
