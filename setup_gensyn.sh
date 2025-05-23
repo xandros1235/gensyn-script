@@ -3,7 +3,6 @@ set -e
 
 # Colors
 GREEN='\033[0;32m'
-RED='\033[0;31m'
 NC='\033[0m'
 
 # BANNER
@@ -25,12 +24,15 @@ PEM_DEST="$USER_HOME/swarm.pem"
 RL_SWARM_DIR="$USER_HOME/rl-swarm"
 
 echo -e "${GREEN}[1/10] Backing up swarm.pem if exists...${NC}"
+
+# Search for swarm.pem in home directory or inside rl-swarm
 if [ -f "$USER_HOME/swarm.pem" ]; then
   PEM_SRC="$USER_HOME/swarm.pem"
 elif [ -f "$RL_SWARM_DIR/swarm.pem" ]; then
   PEM_SRC="$RL_SWARM_DIR/swarm.pem"
 fi
 
+# Backup PEM if found
 if [ -n "$PEM_SRC" ]; then
   echo "Found swarm.pem at: $PEM_SRC"
   cp "$PEM_SRC" "$PEM_DEST.backup"
@@ -46,40 +48,12 @@ sudo apt-get upgrade -y -qq > /dev/null
 echo -e "${GREEN}[3/10] Installing dependencies silently...${NC}"
 sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git screen > /dev/null
 
-echo -e "${GREEN}[4/10] Checking existing Node.js installation...${NC}"
-LATEST_NODE_VERSION=$(curl -s https://nodejs.org/en | grep 'Latest LTS Version' | head -n1 | grep -oP '(\d+\.\d+\.\d+)' | head -n1)
-CURRENT_NODE_VERSION=$(node -v 2>/dev/null | tr -d 'v')
-
-if [ -n "$CURRENT_NODE_VERSION" ]; then
-  echo -e "Current Node.js version: $CURRENT_NODE_VERSION"
-  echo -e "Latest Node.js version: $LATEST_NODE_VERSION"
-
-  if [ "$CURRENT_NODE_VERSION" != "$LATEST_NODE_VERSION" ]; then
-    echo -e "${RED}⚠️ Outdated Node.js version detected. Removing...${NC}"
-    sudo apt remove -y nodejs npm > /dev/null || true
-  else
-    echo -e "${GREEN}✅ Node.js is already up-to-date.${NC}"
-  fi
-fi
-
-echo -e "${GREEN}Installing NVM and latest Node.js...${NC}"
+echo -e "${GREEN}[4/10] Installing NVM and latest Node.js...${NC}"
 curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 source "$NVM_DIR/nvm.sh"
-
-nvm install node --reinstall-packages-from=node > /dev/null
-nvm alias default node
-nvm use default
-
-echo -e "${GREEN}🔁 Ensuring NVM loads in future sessions...${NC}"
-if ! grep -q 'NVM_DIR' "$HOME/.bashrc"; then
-  {
-    echo ''
-    echo 'export NVM_DIR="$HOME/.nvm"'
-    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
-  } >> "$HOME/.bashrc"
-fi
-
+nvm install node > /dev/null
+nvm use node > /dev/null
 
 # Remove old rl-swarm if exists
 if [ -d "$RL_SWARM_DIR" ]; then
@@ -211,30 +185,58 @@ EOF
 
 echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
 screen -dmS gensyn ./run_rl_swarm.sh
-
 echo -e "${GREEN}[10/10] Setting up ngrok...${NC}"
-npm install -g ngrok > /dev/null
+echo -e "${GREEN}🌐 Attempting to expose localhost:3000 via LocalTunnel...${NC}"
 
-echo -e "${GREEN}Enter your ngrok auth token (get it from https://dashboard.ngrok.com/get-started/your-authtoken):${NC}"
-read -rp "Auth Token: " NGROK_TOKEN
-ngrok config add-authtoken "$NGROK_TOKEN"
+# Try LocalTunnel
+npm install -g localtunnel > /dev/null 2>&1
+LT_URL=$(lt --port 3000 --print-requests 2>/dev/null &)
+sleep 5
+LT_PUBLIC_URL=$(curl -s http://localhost:3000 | grep -o 'https://.*\.loca\.lt' | head -n 1)
 
-echo -e "${GREEN}Starting ngrok on port 3000...${NC}"
-screen -dmS ngrok_session bash -c "ngrok http 3000 > /dev/null 2>&1"
+if [[ $LT_PUBLIC_URL == https://* ]]; then
+  echo -e "${GREEN}✅ LocalTunnel URL: ${LT_PUBLIC_URL}${NC}"
+else
+  echo -e "${RED}❌ LocalTunnel failed. Uninstalling...${NC}"
+  npm uninstall -g localtunnel > /dev/null 2>&1
 
-# Wait for ngrok to start and retrieve the public URL
-echo -e "${GREEN}Waiting for ngrok to initialize...${NC}"
-for i in {1..10}; do
-  NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
-  if [[ $NGROK_URL == https://* ]]; then
-    break
+  echo -e "${GREEN}☁️ Trying Cloudflare Tunnel...${NC}"
+  if ! command -v cloudflared &> /dev/null; then
+    wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+    sudo dpkg -i cloudflared-linux-amd64.deb > /dev/null
+    rm cloudflared-linux-amd64.deb
   fi
-  sleep 1
-done
 
-if [[ $NGROK_URL == https://* ]]; then
-  echo -e "${GREEN}=========================================${NC}"
-  echo -e "${GREEN}Gensyn testnet URL: ${NGROK_URL}${NC}"
+  screen -dmS cftunnel cloudflared tunnel --url http://localhost:3000
+  sleep 10
+
+  CF_URL=$(curl -s http://localhost:3000 | grep -o 'https://.*\.trycloudflare\.com' | head -n 1)
+
+  if [[ $CF_URL == https://* ]]; then
+    echo -e "${GREEN}✅ Cloudflare Tunnel URL: ${CF_URL}${NC}"
+  else
+    echo -e "${RED}❌ Cloudflare Tunnel failed. Trying Ngrok...${NC}"
+
+    if ! command -v ngrok &> /dev/null; then
+      npm install -g ngrok > /dev/null
+    fi
+
+    echo -e "${GREEN}🔑 Enter your Ngrok auth token:${NC}"
+    read -rp "Auth Token: " NGROK_TOKEN
+    ngrok config add-authtoken "$NGROK_TOKEN"
+    screen -dmS ngrok_session bash -c "ngrok http 3000 > /dev/null 2>&1"
+    sleep 10
+
+    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
+
+    if [[ $NGROK_URL == https://* ]]; then
+      echo -e "${GREEN}✅ Ngrok URL: ${NGROK_URL}${NC}"
+    else
+      echo -e "${RED}❌ All tunneling methods failed.${NC}"
+    fi
+  fi
+fi
+
   echo -e "${GREEN}Use this in your browser to access the login page.${NC}"
   echo -e "${GREEN}🎥 What's Next? Watch this guide to continue:${NC}"
   echo -e "${GREEN}https://youtu.be/XF_HiOfK1PI?si=tnd6b9kytd1RvcME${NC}"
