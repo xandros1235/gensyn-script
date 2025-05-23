@@ -24,12 +24,6 @@ PEM_SRC=""
 PEM_DEST="$USER_HOME/swarm.pem"
 RL_SWARM_DIR="$USER_HOME/rl-swarm"
 
-# Remove previous folder if exists
-if [ -d "$USER_HOME/gensyn-script" ]; then
-  echo -e "${GREEN}🧹 Removing old gensyn-script folder...${NC}"
-  rm -rf "$USER_HOME/gensyn-script"
-fi
-
 echo -e "${GREEN}[1/10] Backing up swarm.pem if exists...${NC}"
 if [ -f "$USER_HOME/swarm.pem" ]; then
   PEM_SRC="$USER_HOME/swarm.pem"
