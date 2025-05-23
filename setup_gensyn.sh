@@ -46,23 +46,20 @@ sudo apt-get upgrade -y -qq > /dev/null
 echo -e "${GREEN}[3/10] Installing dependencies silently...${NC}"
 sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git screen > /dev/null
 
-echo -e "${GREEN}[4/10] Installing NVM and latest Node.js...${NC}"
-curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-source "$NVM_DIR/nvm.sh"
+echo -e "${GREEN}[4/10] Checking existing Node.js installation...${NC}"
+LATEST_NODE_VERSION=$(curl -s https://nodejs.org/en | grep 'Latest LTS Version' | head -n1 | grep -oP '(\d+\.\d+\.\d+)' | head -n1)
+CURRENT_NODE_VERSION=$(node -v 2>/dev/null | tr -d 'v')
 
-# Install latest Node.js and set as default
-nvm install node --reinstall-packages-from=node > /dev/null
-nvm alias default node
-nvm use default
+if [ -n "$CURRENT_NODE_VERSION" ]; then
+  echo -e "Current Node.js version: $CURRENT_NODE_VERSION"
+  echo -e "Latest Node.js version: $LATEST_NODE_VERSION"
 
-echo -e "${GREEN}🔁 Ensuring NVM loads in future sessions...${NC}"
-if ! grep -q 'NVM_DIR' "$HOME/.bashrc"; then
-  {
-    echo ''
-    echo 'export NVM_DIR="$HOME/.nvm"'
-    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
-  } >> "$HOME/.bashrc"
+  if [ "$CURRENT_NODE_VERSION" != "$LATEST_NODE_VERSION" ]; then
+    echo -e "${RED}⚠️ Outdated Node.js version detected. Removing...${NC}"
+    sudo apt remove -y nodejs npm > /dev/null || true
+  else
+    echo -e "${GREEN}✅ Node.js is already up-to-date.${NC}"
+  fi
 fi
 
 # Remove old rl-swarm if exists
