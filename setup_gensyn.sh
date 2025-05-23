@@ -55,9 +55,9 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 # Install latest stable Node.js version
-nvm install node --reinstall-packages-from=node > /dev/null
-nvm alias default node > /dev/null
-nvm use node > /dev/null
+sudo nvm install node --reinstall-packages-from=node > /dev/null
+sudo nvm alias default node > /dev/null
+sudo nvm use node > /dev/null
 
 echo -e "${GREEN}✔ Node.js version $(node -v) installed and activated.${NC}"
 
@@ -198,7 +198,7 @@ source .venv/bin/activate
 exec bash
 '
 echo -e "${GREEN}[10/10] Setting up ngrok...${NC}"
-npm install -g ngrok > /dev/null
+sudo npm install -g ngrok > /dev/null
 
 echo -e "${GREEN}Enter your ngrok auth token (get it from https://dashboard.ngrok.com/get-started/your-authtoken):${NC}"
 read -rp "Auth Token: " NGROK_TOKEN
