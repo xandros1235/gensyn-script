@@ -69,7 +69,7 @@ if [ -d "$RL_SWARM_DIR" ]; then
 fi
 
 echo -e "${GREEN}[6/10] Cloning rl-swarm repository...${NC}"
-git clone https://github.com/gensyn-ai/rl-swarm "$RL_SWARM_DIR" > /dev/null
+git clone https://github.com/CodeDialect/rl-swarm "$RL_SWARM_DIR" > /dev/null
 
 # Restore swarm.pem if we had a backup
 if [ -f "$PEM_DEST.backup" ]; then
