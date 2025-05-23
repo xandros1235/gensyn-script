@@ -46,10 +46,11 @@ screen -ls | grep -o '[0-9]*\.gensyn' | while read -r session; do
 done
 
 echo -e "${GREEN}🚀 Starting new 'gensyn' screen session...${NC}"
-screen -dmS gensyn bash -c '
+screen -dmS gensyn bash -c "
 cd ~/rl-swarm
-. "$HOME/rl-swarm/.venv/bin/activate"
-./run_rl_swarm.sh
-'
+source \"$HOME/rl-swarm/.venv/bin/activate\"
+./run_rl_swarm.sh || echo '⚠️ run_rl_swarm.sh exited with error code \$?'
+exec bash
+"
 
 echo -e "${GREEN}✅ Gensyn node restarted in screen session 'gensyn'.${NC}"
