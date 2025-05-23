@@ -182,7 +182,76 @@ export default function Home() {
   );
 }
 EOF
+# Free port 3000 if already in use
+echo -e "${GREEN}🔍 Checking if port 3000 is in use...${NC}"
+PORT_3000_PID=$(sudo lsof -t -i:3000 2>/dev/null || true)
 
+if [ -n "$PORT_3000_PID" ]; then
+  echo -e "${RED}⚠️  Port 3000 is in use by PID $PORT_3000_PID. Terminating process...${NC}"
+  sudo kill -9 "$PORT_3000_PID" || true
+  echo -e "${GREEN}✅ Port 3000 has been freed.${NC}"
+else
+  echo -e "${GREEN}✅ Port 3000 is free.${NC}"
+fi
+
+
+echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
+screen -dmS gensyn ./run_rl_swarm.sh
+echo -e "${GREEN}[10/10] Setting up Tunnel...${NC}"
+echo -e "${GREEN}🌐 Attempting to expose localhost:3000 via LocalTunnel...${NC}"
+screen -dmS lt_session bash -c "npx localtunnel --port 3000 > lt.log 2>&1"
+
+# Wait for LT
+for i in {1..15}; do
+  sleep 1
+  LT_URL=$(grep -o 'https://[^[:space:]]*' lt.log | head -n 1)
+  if [[ "$LT_URL" == https://* ]]; then
+    echo -e "${GREEN}✅ LocalTunnel is live at: $LT_URL${NC}"
+    TUNNEL_URL="$LT_URL"
+    break
+  fi
+done
+
+if [ -z "$TUNNEL_URL" ]; then
+  echo -e "${RED}❌ LocalTunnel failed. Trying Cloudflare Tunnel...${NC}"
+  sudo npm install -g cloudflared > /dev/null 2>&1
+  screen -dmS cf_tunnel bash -c "cloudflared tunnel --url http://localhost:3000 --logfile cf.log --loglevel info"
+
+  for i in {1..15}; do
+    sleep 1
+    CF_URL=$(grep -o 'https://[^[:space:]]*.trycloudflare.com' cf.log | head -n 1)
+    if [[ "$CF_URL" == https://* ]]; then
+      echo -e "${GREEN}✅ Cloudflare Tunnel is live at: $CF_URL${NC}"
+      TUNNEL_URL="$CF_URL"
+      break
+    fi
+  done
+fi
+
+if [ -z "$TUNNEL_URL" ]; then
+  echo -e "${RED}❌ Cloudflare Tunnel failed. Trying Ngrok...${NC}"
+  sudo npm install -g ngrok > /dev/null 2>&1
+  echo -e "${GREEN}🔐 Enter your Ngrok auth token:${NC}"
+  read -rp "Auth Token: " NGROK_TOKEN
+  ngrok config add-authtoken "$NGROK_TOKEN"
+  screen -dmS ngrok_session bash -c "ngrok http 3000 > /dev/null 2>&1"
+
+  for i in {1..15}; do
+    sleep 1
+    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
+    if [[ $NGROK_URL == https://* ]]; then
+      echo -e "${GREEN}✅ Ngrok is live at: $NGROK_URL${NC}"
+      TUNNEL_URL="$NGROK_URL"
+      break
+    fi
+  done
+fi
+
+if [ -z "$TUNNEL_URL" ]; then
+  echo -e "${RED}❌ All tunneling methods failed. Please check manually.${NC}"
+else
+  echo -e "${GREEN}=========================================${NC}"
+  echo -e "${GREEN}Public URL: $TUNNEL_URL${NC}"
 echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
 screen -dmS gensyn ./run_rl_swarm.sh
 echo -e "${GREEN}[10/10] Setting up ngrok...${NC}"
@@ -238,6 +307,8 @@ else
 fi
 
   echo -e "${GREEN}Use this in your browser to access the login page.${NC}"
+  echo -e "${GREEN}=========================================${NC}"
+fi
   echo -e "${GREEN}🎥 What's Next? Watch this guide to continue:${NC}"
   echo -e "${GREEN}https://youtu.be/XF_HiOfK1PI?si=tnd6b9kytd1RvcME${NC}"
   echo -e "${GREEN}=========================================${NC}"
