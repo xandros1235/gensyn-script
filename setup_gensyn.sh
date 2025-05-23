@@ -51,9 +51,16 @@ sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git scre
 echo -e "${GREEN}[4/10] Installing NVM and latest Node.js...${NC}"
 curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
-source "$NVM_DIR/nvm.sh"
-nvm install node > /dev/null
+# Ensure nvm.sh is sourced for the current shell
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Install latest stable Node.js version
+nvm install node --reinstall-packages-from=node > /dev/null
+nvm alias default node > /dev/null
 nvm use node > /dev/null
+
+echo -e "${GREEN}✔ Node.js version $(node -v) installed and activated.${NC}"
+
 
 # Remove old rl-swarm if exists
 if [ -d "$RL_SWARM_DIR" ]; then
