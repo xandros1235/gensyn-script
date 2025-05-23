@@ -184,7 +184,12 @@ export default function Home() {
 EOF
 
 echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
-screen -dmS gensyn ./run_rl_swarm.sh
+screen -dmS gensyn bash -c '
+cd ~/rl-swarm
+source .venv/bin/activate
+./run_rl_swarm.sh || echo "⚠️ run_rl_swarm.sh exited with error code $?"
+exec bash
+'
 echo -e "${GREEN}[10/10] Setting up ngrok...${NC}"
 npm install -g ngrok > /dev/null
 
