@@ -184,15 +184,16 @@ export default function Home() {
 EOF
 # Free port 3000 if already in use
 echo -e "${GREEN}🔍 Checking if port 3000 is in use...${NC}"
-PORT_3000_PID=$(sudo lsof -t -i:3000)
+PORT_3000_PID=$(sudo lsof -t -i:3000 2>/dev/null || true)
 
 if [ -n "$PORT_3000_PID" ]; then
   echo -e "${RED}⚠️  Port 3000 is in use by PID $PORT_3000_PID. Terminating process...${NC}"
-  sudo kill -9 "$PORT_3000_PID"
+  sudo kill -9 "$PORT_3000_PID" || true
   echo -e "${GREEN}✅ Port 3000 has been freed.${NC}"
 else
   echo -e "${GREEN}✅ Port 3000 is free.${NC}"
 fi
+
 
 echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
 screen -dmS gensyn ./run_rl_swarm.sh
