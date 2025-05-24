@@ -75,6 +75,58 @@ cd "$RL_SWARM_DIR"
 echo -e "${GREEN}[7/10] Setting up Python virtual environment...${NC}"
 python3 -m venv .venv
 source .venv/bin/activate
+# Try to locate the config YAML
+echo -e "${GREEN}🔍 Searching for YAML config file...${NC}"
+
+SEARCH_DIRS=("$HOME/rl-swarm/hivemind_exp/configs/mac" "$HOME/rl-swarm")
+CONFIG_FILE=""
+
+for dir in "${SEARCH_DIRS[@]}"; do
+  if [ -d "$dir" ]; then
+    cd "$dir"
+    file=$(ls *.yaml 2>/dev/null | head -n 1)
+    if [ -n "$file" ]; then
+      CONFIG_FILE="$file"
+      CONFIG_DIR="$dir"
+      break
+    fi
+  fi
+done
+
+if [ -z "$CONFIG_FILE" ]; then
+  echo -e "${RED}❌ No YAML config file found in expected locations.${NC}"
+  exit 1
+fi
+
+echo -e "${GREEN}🛠 Fixing batch error in: $CONFIG_FILE${NC}"
+cd "$CONFIG_DIR"
+cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
+
+sed -i 's/torch_dtype:.*/torch_dtype: float32/' "$CONFIG_FILE"
+sed -i 's/bf16:.*/bf16: false/' "$CONFIG_FILE"
+sed -i 's/tf32:.*/tf32: false/' "$CONFIG_FILE"
+sed -i 's/gradient_checkpointing:.*/gradient_checkpointing: false/' "$CONFIG_FILE"
+sed -i 's/per_device_train_batch_size:.*/per_device_train_batch_size: 1/' "$CONFIG_FILE"
+
+echo -e "${GREEN}✅ Config updated and backup saved as $CONFIG_FILE.bak${NC}"
+echo -e "${GREEN} Updating grpo_runner.py to change DHT start and timeout...${NC}"
+sed -i 's/hivemind\.DHT(start=True, startup_timeout=30/hivemind.DHT(start=False, startup_timeout=120/' "$HOME/rl-swarm/hivemind_exp/runner/grpo_runner.py"
+echo -e "${GREEN} Activating virtual environment...${NC}"
+cd "$HOME/rl-swarm"
+source .venv/bin/activate
+
+# Now we can safely get the Python version from the venv
+PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+P2P_DAEMON_FILE="$HOME/rl-swarm/.venv/lib/python$PYTHON_VERSION/site-packages/hivemind/p2p/p2p_daemon.py"
+
+echo -e "${GREEN}[13/10] Updating startup_timeout in hivemind's p2p_daemon.py...${NC}"
+
+if [ -f "$P2P_DAEMON_FILE" ]; then
+  sed -i 's/startup_timeout: float = 15/startup_timeout: float = 120/' "$P2P_DAEMON_FILE"
+  echo -e "${GREEN}✅ Updated startup_timeout to 120 in: $P2P_DAEMON_FILE${NC}"
+else
+  echo -e "${RED}⚠️ File not found: $P2P_DAEMON_FILE. Skipping this step.${NC}"
+fi
 
 echo -e "${GREEN}[8/10] Replacing modal-login/app/page.tsx with custom content...${NC}"
 mkdir -p modal-login/app
@@ -201,73 +253,80 @@ echo -e "${GREEN}[10/10] Attempting to expose localhost:3000...${NC}"
 TUNNEL_URL=""
 
 # Try LocalTunnel
-echo -e "${GREEN}🌐 Trying LocalTunnel...${NC}"
-npm install -g localtunnel > /dev/null 2>&1
-screen -dmS lt_tunnel bash -c "npx localtunnel --port 3000 > lt.log 2>&1"
+echo -e "${GREEN}🌐 Choose a tunnel method to expose port 3000:${NC}"
+echo -e "1) LocalTunnel"
+echo -e "2) Cloudflared"
+echo -e "3) Ngrok"
+echo -e "4) Auto fallback (try all methods)"
+read -rp "Enter your choice [1-4]: " TUNNEL_CHOICE
 
-for i in {1..15}; do
-  sleep 1
-  LT_URL=$(grep -o 'https://[^[:space:]]*\.loca\.lt' lt.log | head -n 1)
-  if [[ "$LT_URL" == https://* ]]; then
-    TUNNEL_URL="$LT_URL"
-    echo -e "${GREEN}✅ LocalTunnel is live at: $TUNNEL_URL${NC}"
-    break
-  fi
-done
+TUNNEL_URL=""
 
-# Try Cloudflared
-if [ -z "$TUNNEL_URL" ]; then
-  echo -e "${RED}❌ LocalTunnel failed. Trying Cloudflare Tunnel...${NC}"
+start_localtunnel() {
+  echo -e "${GREEN}🔌 Starting LocalTunnel...${NC}"
+  npm install -g localtunnel > /dev/null 2>&1
+  screen -S lt_tunnel -X quit 2>/dev/null
+  screen -dmS lt_tunnel bash -c "npx localtunnel --port 3000 > lt.log 2>&1"
+  sleep 5
+  grep -o 'https://[^[:space:]]*\.loca\.lt' lt.log | head -n 1
+}
+
+start_cloudflared() {
+  echo -e "${GREEN}🔌 Starting Cloudflared...${NC}"
   if ! command -v cloudflared &> /dev/null; then
     wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
     sudo dpkg -i cloudflared-linux-amd64.deb > /dev/null
-    rm cloudflared-linux-amd64.deb
+    rm -f cloudflared-linux-amd64.deb
   fi
-
+  screen -S cf_tunnel -X quit 2>/dev/null
   screen -dmS cf_tunnel bash -c "cloudflared tunnel --url http://localhost:3000 --logfile cf.log --loglevel info"
   sleep 5
+  grep -o 'https://[^[:space:]]*\.trycloudflare\.com' cf.log | head -n 1
+}
 
-  for i in {1..15}; do
-    sleep 1
-    CF_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' cf.log | head -n 1)
-    if [[ "$CF_URL" == https://* ]]; then
-      TUNNEL_URL="$CF_URL"
-      echo -e "${GREEN}✅ Cloudflare Tunnel is live at: $TUNNEL_URL${NC}"
-      break
-    fi
-  done
-fi
-
-# Try Ngrok
-if [ -z "$TUNNEL_URL" ]; then
-  echo -e "${RED}❌ Cloudflare Tunnel failed. Trying Ngrok...${NC}"
+start_ngrok() {
+  echo -e "${GREEN}🔌 Starting Ngrok...${NC}"
   if ! command -v ngrok &> /dev/null; then
     npm install -g ngrok > /dev/null
   fi
-  echo -e "${GREEN}🔑 Enter your Ngrok auth token:${NC}"
-  read -rp "Auth Token: " NGROK_TOKEN
-  ngrok config add-authtoken "$NGROK_TOKEN"
+  read -rp "🔑 Enter your Ngrok auth token: " NGROK_TOKEN
+  ngrok config add-authtoken "$NGROK_TOKEN" > /dev/null 2>&1
+  screen -S ngrok_tunnel -X quit 2>/dev/null
   screen -dmS ngrok_tunnel bash -c "ngrok http 3000 > /dev/null 2>&1"
   sleep 5
+  curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1
+}
 
-  for i in {1..15}; do
-    sleep 1
-    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
-    if [[ "$NGROK_URL" == https://* ]]; then
-      TUNNEL_URL="$NGROK_URL"
-      echo -e "${GREEN}✅ Ngrok is live at: $TUNNEL_URL${NC}"
-      break
+# Manual selection or fallback logic
+case "$TUNNEL_CHOICE" in
+  1)
+    TUNNEL_URL=$(start_localtunnel)
+    ;;
+  2)
+    TUNNEL_URL=$(start_cloudflared)
+    ;;
+  3)
+    TUNNEL_URL=$(start_ngrok)
+    ;;
+  4|*)
+    TUNNEL_URL=$(start_localtunnel)
+    if [ -z "$TUNNEL_URL" ]; then
+      echo -e "${YELLOW}⚠️ LocalTunnel failed, trying Cloudflared...${NC}"
+      TUNNEL_URL=$(start_cloudflared)
     fi
-  done
-fi
+    if [ -z "$TUNNEL_URL" ]; then
+      echo -e "${YELLOW}⚠️ Cloudflared failed, trying Ngrok...${NC}"
+      TUNNEL_URL=$(start_ngrok)
+    fi
+    ;;
+esac
 
-# Final output
-if [ -z "$TUNNEL_URL" ]; then
-  echo -e "${RED}❌ All tunneling methods failed. Please check manually.${NC}"
-else
+if [ -n "$TUNNEL_URL" ]; then
+  echo -e "${GREEN}✅ Tunnel established at: ${CYAN}$TUNNEL_URL${NC}"
   echo -e "${GREEN}=========================================${NC}"
-  echo -e "${GREEN}🔗 Public URL: $TUNNEL_URL${NC}"
   echo -e "${GREEN}🧠 Use this in your browser to access the login page.${NC}"
   echo -e "${GREEN}🎥 Guide: https://youtu.be/XF_HiOfK1PI?si=tnd6b9kytd1RvcME${NC}"
   echo -e "${GREEN}=========================================${NC}"
+else
+  echo -e "${RED}❌ Failed to establish a tunnel. Please check logs or try again.${NC}"
 fi
