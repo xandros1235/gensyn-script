@@ -234,6 +234,10 @@ export default function Home() {
   );
 }
 EOF
+echo -e "${GREEN}🧹 Closing any existing 'gensyn' screen sessions...${NC}"
+screen -ls | grep -o '[0-9]*\.gensyn' | while read -r session; do
+  screen -S "${session%%.*}" -X quit
+done
 # Free port 3000 if already in use
 echo -e "${GREEN}🔍 Checking if port 3000 is in use...${NC}"
 PORT_3000_PID=$(sudo lsof -t -i:3000 2>/dev/null || true)
@@ -247,7 +251,12 @@ else
 fi
 
 echo -e "${GREEN}[9/10] Running rl-swarm in screen session...${NC}"
-screen -dmS gensyn ./run_rl_swarm.sh
+screen -dmS gensyn bash -c "
+cd ~/rl-swarm
+source \"$HOME/rl-swarm/.venv/bin/activate\"
+./run_rl_swarm.sh || echo '⚠️ run_rl_swarm.sh exited with error code \$?'
+exec bash
+"
 
 echo -e "${GREEN}[10/10] Attempting to expose localhost:3000...${NC}"
 TUNNEL_URL=""
@@ -289,6 +298,7 @@ start_ngrok() {
   if ! command -v ngrok &> /dev/null; then
     npm install -g ngrok > /dev/null
   fi
+  echo -e "${GREEN}🔌 Go to https://dashboard.ngrok.com/get-started/your-authtoken for auth token${NC}"
   read -rp "🔑 Enter your Ngrok auth token: " NGROK_TOKEN
   ngrok config add-authtoken "$NGROK_TOKEN" > /dev/null 2>&1
   screen -S ngrok_tunnel -X quit 2>/dev/null
