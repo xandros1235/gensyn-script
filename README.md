@@ -10,7 +10,7 @@ Update and upgrade your system, then install required packages:
 
 ```bash
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt install nano curl screen git -y
+sudo apt install nano curl screen git ufw -y
 ```
 ---
 
@@ -68,13 +68,4 @@ sudo ufw enable
 
 ```bash
 screen -r gensyn
-```
-
-
-
-**Note:** Run only if the screen shows current_batch variable error:
-
-```bash
-chmod +x $HOME/gensyn-script/batch_error.sh
-$HOME/gensyn-script/batch_error.sh
 ```
