@@ -295,11 +295,10 @@ start_cloudflared() {
 
 start_ngrok() {
   echo -e "${GREEN}🔌 Starting Ngrok...${NC}"
-  echo -e "${GREEN}🔌 Go to https://dashboard.ngrok.com/get-started/your-authtoken for auth token${NC}"
   if ! command -v ngrok &> /dev/null; then
     npm install -g ngrok > /dev/null
   fi
-  read -rp "🔑 Enter your Ngrok auth token: " NGROK_TOKEN
+  read -rp "🔑 Enter your Ngrok auth token from https://dashboard.ngrok.com/get-started/your-authtoken: " NGROK_TOKEN
   ngrok config add-authtoken "$NGROK_TOKEN" > /dev/null 2>&1
   screen -S ngrok_tunnel -X quit 2>/dev/null
   screen -dmS ngrok_tunnel bash -c "ngrok http 3000 > /dev/null 2>&1"
