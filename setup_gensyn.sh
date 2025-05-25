@@ -110,7 +110,7 @@ sed -i 's/per_device_train_batch_size:.*/per_device_train_batch_size: 1/' "$CONF
 
 echo -e "${GREEN}✅ Config updated and backup saved as $CONFIG_FILE.bak${NC}"
 echo -e "${GREEN} Updating grpo_runner.py to change DHT start and timeout...${NC}"
-sed -i 's/hivemind\.DHT(start=True, startup_timeout=30/hivemind.DHT(start=False, startup_timeout=120/' "$HOME/rl-swarm/hivemind_exp/runner/grpo_runner.py"
+sed -i.bak 's/startup_timeout=30/startup_timeout=120/' "$HOME/rl-swarm/hivemind_exp/runner/grpo_runner.py"
 echo -e "${GREEN} Activating virtual environment...${NC}"
 cd "$HOME/rl-swarm"
 source .venv/bin/activate
