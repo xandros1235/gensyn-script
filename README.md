@@ -92,6 +92,14 @@ Run command:
 ```./run_rl_swarm.sh```
 
 
+### OOM errors on MacBook?
+
+Try this (experimental) fix to increase memory:
+
+```bash
+export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 && ./run_rl_swarm.sh
+```
+
 **Note:** Press `Ctrl+A` then `D` to detach from the screen session. Reconnect later using:
 
 ```bash
