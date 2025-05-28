@@ -64,6 +64,34 @@ sudo ufw enable
 ```
 ---
 
+## Fix RuntimeError: DHTNode bootstrap failed
+
+Full error:
+> **RuntimeError: DHTNode bootstrap failed: none of the initial_peers responded to the ping. (set ensure_bootstrap_success=False to ignore)**
+
+1. Open the file `testnet_grpo_runner.py`
+``` bash
+nano $HOME/rl-swarm/hivemind_exp/runner/gensyn/testnet_grpo_runner.py
+```
+
+3. Find the line:
+`dht = hivemind.DHT(start=True, **self._dht_kwargs(grpo_args))`
+
+4. Replace it with:
+```dht = hivemind.DHT(start=True, ensure_bootstrap_success=False, **self._dht_kwargs(grpo_args))```
+
+5. Save your changes and exit the editor:
+Press `Ctrl+X` and press `Y` to exit.
+
+6. Go to your screen
+```screen -r swarm```
+
+7. Restart the node
+Press `Ctrl + C`.
+Run command:
+```./run_rl_swarm.sh```
+
+
 **Note:** Press `Ctrl+A` then `D` to detach from the screen session. Reconnect later using:
 
 ```bash
