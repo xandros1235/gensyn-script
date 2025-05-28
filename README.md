@@ -100,6 +100,37 @@ Try this (experimental) fix to increase memory:
 export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 && ./run_rl_swarm.sh
 ```
 
+
+### How to upgrade the node as per new changes in the official repository (Do only If your node is already running if you are new or stopped your node it's fine because script already points to the original repository)
+
+Open the rl-swarm directory:
+
+```bash
+cd $HOME/rl-swarm
+```
+
+Pull the changes from original repository:
+```bash
+git pull
+```
+
+**Note:** If the above command response is already up to date then there is no need to go further. If not then follow below.
+
+
+Open gensyn screen:
+
+```bash
+screen -r gensyn
+```
+Stop the already running node:
+Press Ctrl+c
+
+Restart the node:
+```bash
+./run_rl_swarm.sh
+```
+
+
 **Note:** Press `Ctrl+A` then `D` to detach from the screen session. Reconnect later using:
 
 ```bash
