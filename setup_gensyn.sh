@@ -42,11 +42,11 @@ else
 fi
 
 echo -e "${GREEN}[1/10] Updating system silently...${NC}"
-sudo apt-get update -qq > /dev/null
-sudo apt-get upgrade -y -qq > /dev/null
+sudo apt-get update  > /dev/null
+sudo apt-get upgrade -y > /dev/null
 
 echo -e "${GREEN}[2/10] Installing dependencies silently...${NC}"
-sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git screen > /dev/null
+sudo apt install -y sudo nano curl python3 python3-pip python3-venv git screen > /dev/null
 
 echo -e "${GREEN}[3/10] Installing NVM and latest Node.js...${NC}"
 curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
