@@ -111,6 +111,7 @@ cd $HOME/rl-swarm
 
 Pull the changes from original repository:
 ```bash
+git reset --hard HEAD
 git pull
 ```
 
