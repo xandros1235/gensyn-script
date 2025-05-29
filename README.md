@@ -71,7 +71,7 @@ Full error:
 
 1. Open the file `testnet_grpo_runner.py`
 ``` bash
-nano $HOME/rl-swarm/hivemind_exp/runner/gensyn/testnet_grpo_runner.py
+nano $HOME/rl-swarm/hivemind_exp/runner/grpo_runner.py
 ```
 
 3. Find the line:
