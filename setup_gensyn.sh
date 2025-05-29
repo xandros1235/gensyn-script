@@ -229,7 +229,7 @@ if [ -n "$TUNNEL_URL" ]; then
   echo -e "${GREEN}✅ Tunnel established at: ${CYAN}$TUNNEL_URL${NC}"
   echo -e "${GREEN}=========================================${NC}"
   echo -e "${GREEN}🧠 Use this in your browser to access the login page.${NC}"
-  echo -e "${GREEN}🎥 Guide: https://youtu.be/XF_HiOfK1PI?si=tnd6b9kytd1RvcME${NC}"
+  echo -e "${GREEN}🎥 Guide: https://youtu.be/0vwpuGsC5nE${NC}"
   echo -e "${GREEN}=========================================${NC}"
 else
   echo -e "${RED}❌ Failed to establish a tunnel. Please check logs or try again.${NC}"
