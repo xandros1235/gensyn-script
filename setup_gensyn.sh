@@ -18,7 +18,7 @@ EOF
 echo -e "${NC}"
 
 # Set user and paths
-USER_HOME="/home/$(whoami)"
+USER_HOME=$(eval echo "~$(whoami)")
 PEM_SRC=""
 PEM_DEST="$USER_HOME/swarm.pem"
 RL_SWARM_DIR="$USER_HOME/rl-swarm"
