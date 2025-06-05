@@ -134,8 +134,8 @@ screen -ls | grep -o '[0-9]*\.gensyn' | while read -r session; do
   screen -S "${session%%.*}" -X quit
 done
 # Free port 3000 if already in use
-echo -e "${GREEN}🔍 Checking if port 3000 is in use...${NC}"
-PORT_3000_PID=$(sudo lsof -t -i:3000 2>/dev/null || true)
+echo -e "${GREEN}🔍 Checking if port 3000 is in use (via netstat)...${NC}"
+PORT_3000_PID=$(sudo netstat -tunlp 2>/dev/null | grep ':3000' | awk '{print $7}' | cut -d'/' -f1 | head -n1)
 
 if [ -n "$PORT_3000_PID" ]; then
   echo -e "${RED}⚠️  Port 3000 is in use by PID $PORT_3000_PID. Terminating...${NC}"
