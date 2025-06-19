@@ -135,17 +135,17 @@ fi
 echo -e "${GREEN}[8/10] Running rl-swarm in screen session...${NC}"
 screen -dmS gensyn bash -c "cd ~/rl-swarm; source \"$HOME/rl-swarm/.venv/bin/activate\"; ./run_rl_swarm.sh; echo '⚠️ run_rl_swarm.sh exited with error code \$?'; exec bash"
 
-# ================== [9/10] CLOUDFLARE TUNNEL AUTO REFRESH ====================
 echo -e "${GREEN}[9/10] Setting up Cloudflare tunnel with rotation...${NC}"
 if ! command -v cloudflared &> /dev/null; then
-  echo -e "${YELLOW}Installing cloudflared...${NC}"
-  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-  sudo dpkg -i cloudflared-linux-amd64.deb > /dev/null
-  sudo mv /usr/bin/cloudflared /usr/local/bin/cloudflared 2>/dev/null || true
-  rm -f cloudflared-linux-amd64.deb
+  echo -e "${YELLOW}Downloading static cloudflared binary...${NC}"
+  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
+  chmod +x cloudflared
+  sudo mv cloudflared /usr/local/bin/cloudflared
 fi
 
-sudo setcap 'cap_net_bind_service,cap_net_raw,cap_net_admin+ep' /usr/local/bin/cloudflared || echo -e "${RED}⚠️ setcap failed, continuing anyway.${NC}"
+# ✅ Safely set capabilities
+sudo setcap 'cap_net_bind_service,cap_net_raw,cap_net_admin+ep' /usr/local/bin/cloudflared || echo -e "${RED}⚠️ setcap failed. Continuing anyway...${NC}"
+
 
 cat > "$HOME/start_cf_tunnel.sh" << 'EOF'
 #!/bin/bash
