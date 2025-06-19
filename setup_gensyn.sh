@@ -19,7 +19,6 @@ cat << 'EOF'
 EOF
 echo -e "${NC}"
 
-# Set user and paths
 USER_HOME=$(eval echo "~$(whoami)")
 PEM_SRC=""
 PEM_DEST="$USER_HOME/swarm.pem"
@@ -145,13 +144,16 @@ if ! command -v cloudflared &> /dev/null; then
   rm -f cloudflared-linux-amd64.deb
 fi
 
+# ✅ Apply required network permissions for QUIC/UDP (no more "sendmsg: not permitted")
+sudo setcap 'cap_net_bind_service,cap_net_raw,cap_net_admin+ep' $(which cloudflared)
+
 cat > "$HOME/start_cf_tunnel.sh" << 'EOF'
 #!/bin/bash
 LOGFILE="$HOME/cf.log"
 while true; do
   pkill -f 'cloudflared tunnel' || true
   echo "[$(date)] Restarting Cloudflare Tunnel..." >> "$LOGFILE"
-  cloudflared tunnel --url http://localhost:3000 --logfile "$LOGFILE" --loglevel info &
+  cloudflared tunnel --no-quic --url http://localhost:3000 --logfile "$LOGFILE" --loglevel info &
   sleep 43200  # 12 hours
 done
 EOF
