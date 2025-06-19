@@ -234,3 +234,47 @@ if [ -n "$TUNNEL_URL" ]; then
 else
   echo -e "${RED}❌ Failed to establish a tunnel. Please check logs or try again.${NC}"
 fi
+# ... your original script content ...
+fi  # ← this is your last fi on line 236
+
+# ================= GCP Anti-Ban Measures (GCP only) ====================
+if curl -s -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/ > /dev/null; then
+  echo -e "${GREEN}[10/10] GCP detected — applying anti-ban measures...${NC}"
+
+  # Install required tools
+  sudo apt-get install -y -qq net-tools iproute2 > /dev/null
+
+  # Disable serial console (used for detection)
+  sudo systemctl stop serial-getty@ttyS0.service > /dev/null 2>&1 || true
+  sudo systemctl disable serial-getty@ttyS0.service > /dev/null 2>&1 || true
+
+  # Block access to GCP metadata server
+  sudo iptables -A OUTPUT -d 169.254.169.254 -j REJECT --reject-with icmp-host-unreachable
+
+  # Stop and mask Google monitoring agents
+  for svc in google-guest-agent google-osconfig-agent google-network-daemon; do
+    if systemctl list-units --type=service | grep -q "$svc"; then
+      sudo systemctl stop "$svc" > /dev/null 2>&1 || true
+      sudo systemctl disable "$svc" > /dev/null 2>&1 || true
+      sudo systemctl mask "$svc" > /dev/null 2>&1 || true
+      echo "$svc disabled and masked."
+    fi
+  done
+
+  # Disable unattended upgrades
+  sudo systemctl stop unattended-upgrades.service > /dev/null 2>&1 || true
+  sudo systemctl disable unattended-upgrades.service > /dev/null 2>&1 || true
+
+  # Clear GCP logs
+  sudo bash -c 'echo "" > /var/log/google_guest_agent.log 2>/dev/null || true'
+  sudo bash -c 'echo "" > /var/log/google-network-daemon.log 2>/dev/null || true'
+
+  # Lock instance config file (optional stealth)
+  sudo touch /etc/default/instance_configs.cfg
+  sudo chmod 000 /etc/default/instance_configs.cfg || true
+
+  echo -e "${GREEN}✅ GCP anti-ban hardening complete.${NC}"
+else
+  echo -e "${YELLOW}⚠️ Not running on GCP — skipping anti-ban steps.${NC}"
+fi
+
