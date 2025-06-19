@@ -1,183 +1,127 @@
 #!/bin/bash
 set -e
 
-# Colors
+#================= Colors =================#
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# BANNER
+#================= Banner =================#
 echo -e "${GREEN}"
 cat << 'EOF'
-              *_         _                                              
-|  ___ \            | |       | |                    
-   _                                | |   | |  _    _ | |   | | _   _   _    
-| |_        ___ | |   | | / _ \  / || | / _  )|  \ | | |  _ \ |  _) / _  ) 
-/ _)(_  )| |   | ||_|   |_| \_/  \| \)|_| |_| \||_| |_| \_)\*)|_|    (___)
+   ____                 _                 
+  / ___| ___   ___   __| | ___  ___ _ __  
+ | |  _ / _ \ / _ \ / _` |/ _ \/ _ \ '_ \ 
+ | |_| | (_) | (_) | (_| |  __/  __/ | | |
+  \____|\___/ \___/ \__,_|\___|\___|_| |_|
 EOF
 echo -e "${NC}"
 
-USER_HOME=$(eval echo "~$(whoami)")
-PEM_SRC=""
-PEM_DEST="$USER_HOME/swarm.pem"
-RL_SWARM_DIR="$USER_HOME/rl-swarm"
+echo -e "${YELLOW}[*] Starting Gensyn + Anti-GCP + Cloudflare Setup...${NC}"
 
-echo -e "${GREEN}[0/10] Backing up swarm.pem if exists...${NC}"
-if [ -f "$USER_HOME/swarm.pem" ]; then
-  PEM_SRC="$USER_HOME/swarm.pem"
-elif [ -f "$RL_SWARM_DIR/swarm.pem" ]; then
-  PEM_SRC="$RL_SWARM_DIR/swarm.pem"
+#================= Install Base Tools =================#
+sudo apt-get update -y && sudo apt-get upgrade -y
+sudo apt-get install -y curl wget net-tools tmux unzip jq git python3-pip python3-venv macchanger lsb-release software-properties-common cron
+
+#================= GCP Anti-Ban Protection =================#
+echo -e "${CYAN}[+] Applying GCP Anti-Ban Protections...${NC}"
+
+# Block metadata server (anti-crypto detection)
+echo "127.0.0.1 metadata.google.internal" | sudo tee -a /etc/hosts
+echo "127.0.0.1 metadata" | sudo tee -a /etc/hosts
+
+# Change hostname to random
+NEW_HOST="vm-$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)"
+sudo hostnamectl set-hostname "$NEW_HOST"
+echo -e "${GREEN}[✓] Hostname changed to $NEW_HOST${NC}"
+
+# Randomize MAC address
+IFACE=$(ip route | grep default | awk '{print $5}')
+sudo ip link set $IFACE down
+sudo macchanger -r $IFACE || true
+sudo ip link set $IFACE up
+
+# Disable TCP timestamps (avoid fingerprinting)
+sudo sysctl -w net.ipv4.tcp_timestamps=0
+echo "net.ipv4.tcp_timestamps=0" | sudo tee -a /etc/sysctl.conf
+
+# Flush DNS (for masking)
+sudo systemd-resolve --flush-caches || true
+
+#================= Install Cloudflared =================#
+echo -e "${CYAN}[+] Installing Cloudflared...${NC}"
+wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -O cloudflared.deb
+sudo dpkg -i cloudflared.deb || sudo apt-get install -f -y
+sudo rm cloudflared.deb
+CLOUDFLARED_PATH=$(command -v cloudflared)
+sudo chmod +x "$CLOUDFLARED_PATH"
+sudo setcap cap_net_bind_service=+ep "$CLOUDFLARED_PATH" || true
+
+#================= Cloudflare Tunnel Login =================#
+echo -e "${YELLOW}[!] Logging in to Cloudflare (copy + open the URL)...${NC}"
+LOGIN_URL=$(cloudflared tunnel login 2>&1 | tee /tmp/cf_login.log | grep -o 'https://.*cloudflare.com.*')
+if [[ -z "$LOGIN_URL" ]]; then
+    echo -e "${RED}[X] Failed to get login URL. Exiting.${NC}"
+    exit 1
 fi
-if [ -n "$PEM_SRC" ]; then
-  echo "Found swarm.pem at: $PEM_SRC"
-  cp "$PEM_SRC" "$PEM_DEST.backup"
-  echo "Backup created: $PEM_DEST.backup"
-else
-  echo "swarm.pem not found. Continuing without backup."
-fi
+echo -e "\n${CYAN}>>> LOGIN URL: ${NC}$LOGIN_URL\n"
+echo -e "${YELLOW}Open this link in a browser and finish login. Then press ENTER to continue.${NC}"
+read -p ""
 
-echo -e "${GREEN}[1/10] Updating system silently...${NC}"
-sudo apt-get update -qq > /dev/null
-sudo apt-get upgrade -y -qq > /dev/null
+#================= Create Tunnel =================#
+mkdir -p ~/.cloudflared
+TUNNEL_NAME="gensyn-$(date +%s)"
+cloudflared tunnel create "$TUNNEL_NAME"
 
-echo -e "${GREEN}[2/10] Installing dependencies silently...${NC}"
-sudo apt install -y -qq sudo nano curl python3 python3-pip python3-venv git screen net-tools iproute2 > /dev/null
-
-echo -e "${GREEN}[3/10] Installing NVM and latest Node.js...${NC}"
-curl -s -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-source "$NVM_DIR/nvm.sh"
-nvm install node > /dev/null
-nvm use node > /dev/null
-
-if [ -d "$RL_SWARM_DIR" ]; then
-  echo -e "${GREEN}[4/10] Removing existing rl-swarm folder...${NC}"
-  rm -rf "$RL_SWARM_DIR"
-fi
-
-echo -e "${GREEN}[5/10] Cloning rl-swarm repository...${NC}"
-git clone https://github.com/gensyn-ai/rl-swarm "$RL_SWARM_DIR" > /dev/null
-
-if [ -f "$PEM_DEST.backup" ]; then
-  cp "$PEM_DEST.backup" "$RL_SWARM_DIR/swarm.pem"
-  echo "Restored swarm.pem into rl-swarm folder."
-fi
-
-cd "$RL_SWARM_DIR"
-
-echo -e "${GREEN}[6/10] Setting up Python virtual environment...${NC}"
-python3 -m venv .venv
-source .venv/bin/activate
-
-echo -e "${GREEN}🔍 Searching for YAML config file...${NC}"
-SEARCH_DIRS=("$HOME/rl-swarm/hivemind_exp/configs/mac" "$HOME/rl-swarm")
-CONFIG_FILE=""
-for dir in "${SEARCH_DIRS[@]}"; do
-  if [ -d "$dir" ]; then
-    cd "$dir"
-    file=$(ls *.yaml 2>/dev/null | head -n 1)
-    if [ -n "$file" ]; then
-      CONFIG_FILE="$file"
-      CONFIG_DIR="$dir"
-      break
-    fi
-  fi
-done
-
-if [ -z "$CONFIG_FILE" ]; then
-  echo -e "${RED}❌ No YAML config file found in expected locations.${NC}"
-  exit 1
-fi
-
-echo -e "${GREEN}🛠 Fixing batch error in: $CONFIG_FILE${NC}"
-cd "$CONFIG_DIR"
-cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
-sed -i 's/torch_dtype:.*/torch_dtype: float32/' "$CONFIG_FILE"
-sed -i 's/bf16:.*/bf16: false/' "$CONFIG_FILE"
-sed -i 's/tf32:.*/tf32: false/' "$CONFIG_FILE"
-sed -i 's/gradient_checkpointing:.*/gradient_checkpointing: false/' "$CONFIG_FILE"
-sed -i 's/per_device_train_batch_size:.*/per_device_train_batch_size: 1/' "$CONFIG_FILE"
-echo -e "${GREEN}✅ Config updated and backup saved as $CONFIG_FILE.bak${NC}"
-
-echo -e "${GREEN}🧠 Updating grpo_runner.py and p2p_daemon.py timeouts...${NC}"
-sed -i.bak 's/startup_timeout=30/startup_timeout=120/' "$HOME/rl-swarm/hivemind_exp/runner/grpo_runner.py"
-
-PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-P2P_DAEMON_FILE="$HOME/rl-swarm/.venv/lib/python$PYTHON_VERSION/site-packages/hivemind/p2p/p2p_daemon.py"
-if [ -f "$P2P_DAEMON_FILE" ]; then
-  sed -i 's/startup_timeout: float = 15/startup_timeout: float = 120/' "$P2P_DAEMON_FILE"
-fi
-
-echo -e "${GREEN}🧹 Closing any existing 'gensyn' screen sessions...${NC}"
-screen -ls | grep -o '[0-9]*\.gensyn' | while read -r session; do
-  screen -S "${session%%.*}" -X quit
-done
-
-echo -e "${GREEN}🔍 Checking if port 3000 is in use...${NC}"
-PORT_3000_PID=$(sudo netstat -tunlp 2>/dev/null | grep ':3000' | awk '{print $7}' | cut -d'/' -f1 | head -n1)
-if [ -n "$PORT_3000_PID" ]; then
-  sudo kill -9 "$PORT_3000_PID"
-  echo -e "${GREEN}✅ Port 3000 has been freed.${NC}"
-fi
-
-echo -e "${GREEN}[8/10] Launching rl-swarm inside screen...${NC}"
-screen -dmS gensyn bash -c "cd ~/rl-swarm; source \"$HOME/rl-swarm/.venv/bin/activate\"; ./run_rl_swarm.sh; exec bash"
-
-# ============== [9/10] CLOUDFLARE TUNNEL FIX (NO SETCAP) ==============
-echo -e "${GREEN}[9/10] Setting up Cloudflare tunnel...${NC}"
-if ! command -v cloudflared &> /dev/null; then
-  echo -e "${YELLOW}Installing static cloudflared binary...${NC}"
-  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
-  chmod +x cloudflared
-  sudo mv cloudflared /usr/local/bin/cloudflared
-fi
-
-echo -e "${YELLOW}Skipping setcap — not needed for HTTP tunnel.${NC}"
-
-cat > "$HOME/start_cf_tunnel.sh" << 'EOF'
-#!/bin/bash
-LOGFILE="$HOME/cf.log"
-while true; do
-  pkill -f 'cloudflared tunnel' || true
-  echo "[$(date)] Restarting Cloudflare Tunnel..." >> "$LOGFILE"
-  /usr/local/bin/cloudflared tunnel --no-quic --url http://localhost:3000 --logfile "$LOGFILE" --loglevel info &
-  sleep 43200
-done
+# Write config
+cat <<EOF > ~/.cloudflared/config.yml
+tunnel: $TUNNEL_NAME
+credentials-file: /root/.cloudflared/${TUNNEL_NAME}.json
+ingress:
+  - service: http://localhost:8000
+  - service: http_status:404
 EOF
 
-chmod +x "$HOME/start_cf_tunnel.sh"
-screen -S cf_tunnel -X quit 2>/dev/null || true
-screen -dmS cf_tunnel bash "$HOME/start_cf_tunnel.sh"
-sleep 5
-TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' "$HOME/cf.log" | tail -n 1)
+#================= Gensyn Setup =================#
+echo -e "${CYAN}[+] Installing Gensyn...${NC}"
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install "gensyn[speed]"
 
-if [ -n "$TUNNEL_URL" ]; then
-  echo -e "${GREEN}✅ Tunnel established: ${CYAN}$TUNNEL_URL${NC}"
-  echo -e "${GREEN}🔁 Auto-refreshes every 12 hours.${NC}"
-else
-  echo -e "${RED}❌ Tunnel failed. Check $HOME/cf.log.${NC}"
-fi
+#================= Create Start Scripts =================#
+echo -e "${CYAN}[+] Creating start scripts...${NC}"
 
-# ============== [10/10] GCP ANTI-BAN SECTION ==============
-if curl -s -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/ > /dev/null; then
-  echo -e "${GREEN}[10/10] GCP detected — applying anti-ban measures...${NC}"
-  sudo systemctl stop serial-getty@ttyS0.service || true
-  sudo systemctl disable serial-getty@ttyS0.service || true
-  sudo iptables -A OUTPUT -d 169.254.169.254 -j REJECT --reject-with icmp-host-unreachable
-  for svc in google-guest-agent google-osconfig-agent google-network-daemon; do
-    sudo systemctl stop "$svc" 2>/dev/null || true
-    sudo systemctl disable "$svc" 2>/dev/null || true
-    sudo systemctl mask "$svc" 2>/dev/null || true
-  done
-  sudo systemctl stop unattended-upgrades.service || true
-  sudo systemctl disable unattended-upgrades.service || true
-  sudo bash -c 'echo "" > /var/log/google_guest_agent.log' || true
-  sudo bash -c 'echo "" > /var/log/google-network-daemon.log' || true
-  sudo touch /etc/default/instance_configs.cfg
-  sudo chmod 000 /etc/default/instance_configs.cfg || true
-  echo -e "${GREEN}✅ GCP anti-ban hardening complete.${NC}"
-else
-  echo -e "${YELLOW}⚠️ Not running on GCP — skipping anti-ban steps.${NC}"
-fi
+cat <<EOF > run_node.sh
+#!/bin/bash
+source venv/bin/activate
+gensyn swarm --start
+EOF
+chmod +x run_node.sh
+
+cat <<EOF > run_tunnel.sh
+#!/bin/bash
+cloudflared tunnel run $TUNNEL_NAME
+EOF
+chmod +x run_tunnel.sh
+
+#================= Auto Tunnel Refresh Setup =================#
+echo -e "${CYAN}[+] Setting up auto-refresh every 12 hours via cron + tmux...${NC}"
+
+(crontab -l 2>/dev/null; echo "0 */12 * * * pkill -f 'cloudflared tunnel run' && tmux kill-session -t tunnel && tmux new-session -d -s tunnel './run_tunnel.sh'") | crontab -
+
+#================= Start Node and Tunnel =================#
+echo -e "${CYAN}[+] Launching Gensyn node and tunnel in background (tmux)...${NC}"
+tmux new-session -d -s gensyn './run_node.sh'
+tmux new-session -d -s tunnel './run_tunnel.sh'
+
+#================= Done =================#
+echo -e "${GREEN}[✓] Setup complete! Gensyn node and tunnel are now running.${NC}"
+echo -e "${YELLOW}Use the following commands to monitor or restart:"
+echo -e "  - tmux attach -t gensyn     # View node"
+echo -e "  - tmux attach -t tunnel     # View tunnel"
+echo -e "  - ./run_node.sh             # Manual restart node"
+echo -e "  - ./run_tunnel.sh           # Manual restart tunnel"
+echo -e "${NC}"
