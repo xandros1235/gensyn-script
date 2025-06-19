@@ -114,7 +114,7 @@ P2P_DAEMON_FILE="$HOME/rl-swarm/.venv/lib/python$PYTHON_VERSION/site-packages/hi
 
 echo -e "${GREEN}[7/10] Updating startup_timeout in hivemind's p2p_daemon.py...${NC}"
 
-xandros🆙 UXUY, [19-06-2025 15:33]
+# xandros UP UXUY, [19-06-2025 15:33]
 if [ -f "$P2P_DAEMON_FILE" ]; then
   sed -i 's/startup_timeout: float = 15/startup_timeout: float = 120/' "$P2P_DAEMON_FILE"
   echo -e "${GREEN}✅ Updated startup_timeout to 120 in: $P2P_DAEMON_FILE${NC}"
