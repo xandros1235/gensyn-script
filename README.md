@@ -137,3 +137,25 @@ Restart the node:
 ```bash
 screen -r gensyn
 ```
+---
+
+## 🛡️ Optional: Run GENSYN Safely on GCP (Avoid Ban)
+
+If you're running this on Google Cloud Platform (GCP), use a delayed launcher to avoid triggering automated ban systems.
+
+### ✅ Step 6: Create a Safe Launcher Script
+
+`bash
+nano start_safe.sh
+
+#!/bin/bash
+# GCP-safe launcher for GENSYN
+
+echo "Delaying start to avoid instant resource spike..."
+sleep 60  # Wait before starting
+
+# Hide GPU (optional, if present)
+export CUDA_VISIBLE_DEVICES=""
+
+# Run GENSYN inside a detached screen session
+screen -dmS gensyn ./run_rl_swarm.sh
