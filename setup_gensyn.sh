@@ -122,7 +122,7 @@ screen -ls | grep -o '[0-9]*\.gensyn' | while read -r session; do
   screen -S "${session%%.*}" -X quit
 done
 
-echo -e "${GREEN}🔍 Checking if port 3000 is in use (via netstat)...${NC}"
+echo -e "${GREEN}🔍 Checking if port 3000 is in use...${NC}"
 PORT_3000_PID=$(sudo netstat -tunlp 2>/dev/null | grep ':3000' | awk '{print $7}' | cut -d'/' -f1 | head -n1)
 if [ -n "$PORT_3000_PID" ]; then
   echo -e "${RED}⚠️  Port 3000 is in use by PID $PORT_3000_PID. Terminating...${NC}"
@@ -136,16 +136,16 @@ echo -e "${GREEN}[8/10] Running rl-swarm in screen session...${NC}"
 screen -dmS gensyn bash -c "cd ~/rl-swarm; source \"$HOME/rl-swarm/.venv/bin/activate\"; ./run_rl_swarm.sh; echo '⚠️ run_rl_swarm.sh exited with error code \$?'; exec bash"
 
 # ================== [9/10] CLOUDFLARE TUNNEL AUTO REFRESH ====================
-echo -e "${GREEN}[9/10] Starting persistent Cloudflare Tunnel with 12-hour rotation...${NC}"
+echo -e "${GREEN}[9/10] Setting up Cloudflare tunnel with rotation...${NC}"
 if ! command -v cloudflared &> /dev/null; then
   echo -e "${YELLOW}Installing cloudflared...${NC}"
   wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
   sudo dpkg -i cloudflared-linux-amd64.deb > /dev/null
+  sudo mv /usr/bin/cloudflared /usr/local/bin/cloudflared 2>/dev/null || true
   rm -f cloudflared-linux-amd64.deb
 fi
 
-# ✅ Apply required network permissions for QUIC/UDP (no more "sendmsg: not permitted")
-sudo setcap 'cap_net_bind_service,cap_net_raw,cap_net_admin+ep' $(which cloudflared)
+sudo setcap 'cap_net_bind_service,cap_net_raw,cap_net_admin+ep' /usr/local/bin/cloudflared || echo -e "${RED}⚠️ setcap failed, continuing anyway.${NC}"
 
 cat > "$HOME/start_cf_tunnel.sh" << 'EOF'
 #!/bin/bash
@@ -153,8 +153,8 @@ LOGFILE="$HOME/cf.log"
 while true; do
   pkill -f 'cloudflared tunnel' || true
   echo "[$(date)] Restarting Cloudflare Tunnel..." >> "$LOGFILE"
-  cloudflared tunnel --no-quic --url http://localhost:3000 --logfile "$LOGFILE" --loglevel info &
-  sleep 43200  # 12 hours
+  /usr/local/bin/cloudflared tunnel --no-quic --url http://localhost:3000 --logfile "$LOGFILE" --loglevel info &
+  sleep 43200
 done
 EOF
 
@@ -166,10 +166,10 @@ TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' "$HOME/cf.log" 
 
 if [ -n "$TUNNEL_URL" ]; then
   echo -e "${GREEN}✅ Tunnel established at: ${CYAN}$TUNNEL_URL${NC}"
-  echo -e "${GREEN}🔁 This tunnel will auto-refresh every 12 hours.${NC}"
+  echo -e "${GREEN}🔁 Tunnel auto-refreshes every 12 hours.${NC}"
   echo -e "${GREEN}🎥 Guide: https://youtu.be/0vwpuGsC5nE${NC}"
 else
-  echo -e "${RED}❌ Tunnel failed to start. Check $HOME/cf.log for details.${NC}"
+  echo -e "${RED}❌ Tunnel failed to start. Check $HOME/cf.log.${NC}"
 fi
 
 # ================== [10/10] GCP ANTI-BAN SECTION ===================
