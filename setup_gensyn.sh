@@ -1,4 +1,3 @@
-xandros🆙 UXUY, [19-06-2025 15:33]
 #!/bin/bash
 set -e
 
@@ -12,11 +11,11 @@ NC='\033[0m'
 # BANNER
 echo -e "${GREEN}"
 cat << 'EOF'
- __              _         _                                              
-|  ___ \            | |       | |                    _                        
-| |   | |  _    _ | |   | | _   _   _    | |_        ___ 
-| |   | | / _ \  / || | / _  )|  \ | | |  _ \ |  _) / _  ) / _)(_  )| |   | |
-|_|   |_| \_/  \| \)|_| |_| \||_| |_| \_)\__)|_|    (___)
+              *_         _                                              
+|  ___ \            | |       | |                    
+   _                                | |   | |  _    _ | |   | | _   _   _    
+| |_        ___ | |   | | / _ \  / || | / _  )|  \ | | |  _ \ |  _) / _  ) 
+/ _)(_  )| |   | ||_|   |_| \_/  \| \)|_| |_| \||_| |_| \_)\*)|_|    (___)
 EOF
 echo -e "${NC}"
 
@@ -32,7 +31,6 @@ if [ -f "$USER_HOME/swarm.pem" ]; then
 elif [ -f "$RL_SWARM_DIR/swarm.pem" ]; then
   PEM_SRC="$RL_SWARM_DIR/swarm.pem"
 fi
-
 if [ -n "$PEM_SRC" ]; then
   echo "Found swarm.pem at: $PEM_SRC"
   cp "$PEM_SRC" "$PEM_DEST.backup"
@@ -113,8 +111,6 @@ PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.ve
 P2P_DAEMON_FILE="$HOME/rl-swarm/.venv/lib/python$PYTHON_VERSION/site-packages/hivemind/p2p/p2p_daemon.py"
 
 echo -e "${GREEN}[7/10] Updating startup_timeout in hivemind's p2p_daemon.py...${NC}"
-
-# xandros UP UXUY, [19-06-2025 15:33]
 if [ -f "$P2P_DAEMON_FILE" ]; then
   sed -i 's/startup_timeout: float = 15/startup_timeout: float = 120/' "$P2P_DAEMON_FILE"
   echo -e "${GREEN}✅ Updated startup_timeout to 120 in: $P2P_DAEMON_FILE${NC}"
@@ -142,7 +138,6 @@ screen -dmS gensyn bash -c "cd ~/rl-swarm; source \"$HOME/rl-swarm/.venv/bin/act
 
 # ================== [9/10] CLOUDFLARE TUNNEL AUTO REFRESH ====================
 echo -e "${GREEN}[9/10] Starting persistent Cloudflare Tunnel with 12-hour rotation...${NC}"
-
 if ! command -v cloudflared &> /dev/null; then
   echo -e "${YELLOW}Installing cloudflared...${NC}"
   wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
@@ -191,12 +186,11 @@ if curl -s -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v
   done
   sudo systemctl stop unattended-upgrades.service > /dev/null 2>&1 || true
   sudo systemctl disable unattended-upgrades.service > /dev/null 2>&1 || true
-  sudo bash -c 'echo "" > /var/log/google_guest_agent.log 2>/dev/null || true'
-  sudo bash -c 'echo "" > /var/log/google-network-daemon.log 2>/dev/null || true'
+  sudo bash -c 'echo "" > /var/log/google_guest_agent.log' || true
+  sudo bash -c 'echo "" > /var/log/google-network-daemon.log' || true
   sudo touch /etc/default/instance_configs.cfg
   sudo chmod 000 /etc/default/instance_configs.cfg || true
   echo -e "${GREEN}✅ GCP anti-ban hardening complete.${NC}"
 else
   echo -e "${YELLOW}⚠️ Not running on GCP — skipping anti-ban steps.${NC}"
 fi
-
