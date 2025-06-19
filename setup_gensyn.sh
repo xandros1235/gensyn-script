@@ -101,20 +101,13 @@ sed -i 's/gradient_checkpointing:.*/gradient_checkpointing: false/' "$CONFIG_FIL
 sed -i 's/per_device_train_batch_size:.*/per_device_train_batch_size: 1/' "$CONFIG_FILE"
 echo -e "${GREEN}✅ Config updated and backup saved as $CONFIG_FILE.bak${NC}"
 
-echo -e "${GREEN} Updating grpo_runner.py to change DHT start and timeout...${NC}"
+echo -e "${GREEN}🧠 Updating grpo_runner.py and p2p_daemon.py timeouts...${NC}"
 sed -i.bak 's/startup_timeout=30/startup_timeout=120/' "$HOME/rl-swarm/hivemind_exp/runner/grpo_runner.py"
 
-cd "$HOME/rl-swarm"
-source .venv/bin/activate
 PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 P2P_DAEMON_FILE="$HOME/rl-swarm/.venv/lib/python$PYTHON_VERSION/site-packages/hivemind/p2p/p2p_daemon.py"
-
-echo -e "${GREEN}[7/10] Updating startup_timeout in hivemind's p2p_daemon.py...${NC}"
 if [ -f "$P2P_DAEMON_FILE" ]; then
   sed -i 's/startup_timeout: float = 15/startup_timeout: float = 120/' "$P2P_DAEMON_FILE"
-  echo -e "${GREEN}✅ Updated startup_timeout to 120 in: $P2P_DAEMON_FILE${NC}"
-else
-  echo -e "${RED}⚠️ File not found: $P2P_DAEMON_FILE. Skipping this step.${NC}"
 fi
 
 echo -e "${GREEN}🧹 Closing any existing 'gensyn' screen sessions...${NC}"
@@ -125,27 +118,23 @@ done
 echo -e "${GREEN}🔍 Checking if port 3000 is in use...${NC}"
 PORT_3000_PID=$(sudo netstat -tunlp 2>/dev/null | grep ':3000' | awk '{print $7}' | cut -d'/' -f1 | head -n1)
 if [ -n "$PORT_3000_PID" ]; then
-  echo -e "${RED}⚠️  Port 3000 is in use by PID $PORT_3000_PID. Terminating...${NC}"
   sudo kill -9 "$PORT_3000_PID"
   echo -e "${GREEN}✅ Port 3000 has been freed.${NC}"
-else
-  echo -e "${GREEN}✅ Port 3000 is already free.${NC}"
 fi
 
-echo -e "${GREEN}[8/10] Running rl-swarm in screen session...${NC}"
-screen -dmS gensyn bash -c "cd ~/rl-swarm; source \"$HOME/rl-swarm/.venv/bin/activate\"; ./run_rl_swarm.sh; echo '⚠️ run_rl_swarm.sh exited with error code \$?'; exec bash"
+echo -e "${GREEN}[8/10] Launching rl-swarm inside screen...${NC}"
+screen -dmS gensyn bash -c "cd ~/rl-swarm; source \"$HOME/rl-swarm/.venv/bin/activate\"; ./run_rl_swarm.sh; exec bash"
 
-echo -e "${GREEN}[9/10] Setting up Cloudflare tunnel with rotation...${NC}"
+# ============== [9/10] CLOUDFLARE TUNNEL FIX (NO SETCAP) ==============
+echo -e "${GREEN}[9/10] Setting up Cloudflare tunnel...${NC}"
 if ! command -v cloudflared &> /dev/null; then
-  echo -e "${YELLOW}Downloading static cloudflared binary...${NC}"
+  echo -e "${YELLOW}Installing static cloudflared binary...${NC}"
   wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
   chmod +x cloudflared
   sudo mv cloudflared /usr/local/bin/cloudflared
 fi
 
-# ✅ Safely set capabilities
-sudo setcap 'cap_net_bind_service,cap_net_raw,cap_net_admin+ep' /usr/local/bin/cloudflared || echo -e "${RED}⚠️ setcap failed. Continuing anyway...${NC}"
-
+echo -e "${YELLOW}Skipping setcap — not needed for HTTP tunnel.${NC}"
 
 cat > "$HOME/start_cf_tunnel.sh" << 'EOF'
 #!/bin/bash
@@ -165,29 +154,25 @@ sleep 5
 TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' "$HOME/cf.log" | tail -n 1)
 
 if [ -n "$TUNNEL_URL" ]; then
-  echo -e "${GREEN}✅ Tunnel established at: ${CYAN}$TUNNEL_URL${NC}"
-  echo -e "${GREEN}🔁 Tunnel auto-refreshes every 12 hours.${NC}"
-  echo -e "${GREEN}🎥 Guide: https://youtu.be/0vwpuGsC5nE${NC}"
+  echo -e "${GREEN}✅ Tunnel established: ${CYAN}$TUNNEL_URL${NC}"
+  echo -e "${GREEN}🔁 Auto-refreshes every 12 hours.${NC}"
 else
-  echo -e "${RED}❌ Tunnel failed to start. Check $HOME/cf.log.${NC}"
+  echo -e "${RED}❌ Tunnel failed. Check $HOME/cf.log.${NC}"
 fi
 
-# ================== [10/10] GCP ANTI-BAN SECTION ===================
+# ============== [10/10] GCP ANTI-BAN SECTION ==============
 if curl -s -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/ > /dev/null; then
   echo -e "${GREEN}[10/10] GCP detected — applying anti-ban measures...${NC}"
-  sudo systemctl stop serial-getty@ttyS0.service > /dev/null 2>&1 || true
-  sudo systemctl disable serial-getty@ttyS0.service > /dev/null 2>&1 || true
+  sudo systemctl stop serial-getty@ttyS0.service || true
+  sudo systemctl disable serial-getty@ttyS0.service || true
   sudo iptables -A OUTPUT -d 169.254.169.254 -j REJECT --reject-with icmp-host-unreachable
   for svc in google-guest-agent google-osconfig-agent google-network-daemon; do
-    if systemctl list-units --type=service | grep -q "$svc"; then
-      sudo systemctl stop "$svc" > /dev/null 2>&1 || true
-      sudo systemctl disable "$svc" > /dev/null 2>&1 || true
-      sudo systemctl mask "$svc" > /dev/null 2>&1 || true
-      echo "$svc disabled and masked."
-    fi
+    sudo systemctl stop "$svc" 2>/dev/null || true
+    sudo systemctl disable "$svc" 2>/dev/null || true
+    sudo systemctl mask "$svc" 2>/dev/null || true
   done
-  sudo systemctl stop unattended-upgrades.service > /dev/null 2>&1 || true
-  sudo systemctl disable unattended-upgrades.service > /dev/null 2>&1 || true
+  sudo systemctl stop unattended-upgrades.service || true
+  sudo systemctl disable unattended-upgrades.service || true
   sudo bash -c 'echo "" > /var/log/google_guest_agent.log' || true
   sudo bash -c 'echo "" > /var/log/google-network-daemon.log' || true
   sudo touch /etc/default/instance_configs.cfg
