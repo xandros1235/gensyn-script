@@ -117,9 +117,9 @@ PORT_3000_PID=$(sudo netstat -tunlp 2>/dev/null | grep ':3000' | awk '{print $7}
 screen -dmS gensyn bash -c "cd ~/rl-swarm && source .venv/bin/activate && ./run_rl_swarm.sh || echo '⚠️ Failed'"
 
 # 9. Start IAP tunnel
-INSTANCE_NAME="REPLACE_WITH_YOUR_INSTANCE_NAME"
-ZONE_NAME="REPLACE_WITH_YOUR_ZONE"
-PROJECT_ID="REPLACE_WITH_YOUR_PROJECT_ID"
+INSTANCE_NAME="michel1"
+ZONE_NAME="us-central1-c"
+PROJECT_ID="bold-impulse-463214-j9"
 echo -e "${GREEN}[10/10] Starting GCP IAP tunnel...${NC}"
 gcloud compute start-iap-tunnel "$INSTANCE_NAME" 3000 \
   --local-host-port=localhost:3000 \
